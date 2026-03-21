@@ -1,4 +1,4 @@
-//---VulkanApp.cpp---
+ï»¿//---VulkanApp.cpp---
 
 #include "VulkanApp.h"
 #include <iostream>
@@ -7,6 +7,8 @@
 #include <set>
 #include <algorithm>
 #include <fstream>
+#include "rhi/rhi_texture.h"
+#include "backend/vulkan/vulkan_texture.h"
 
 VulkanApp::VulkanApp()
     : swapChainImageFormat(VK_FORMAT_UNDEFINED),
@@ -26,7 +28,7 @@ VulkanApp::VulkanApp()
 VulkanApp::~VulkanApp() {
 }
 
-// ƒƒCƒ“‚ÌÀsŠÖ”
+// ãƒ¡ã‚¤ãƒ³ã®å®Ÿè¡Œé–¢æ•°
 void VulkanApp::run() {
     initWindow();
     initVulkan();
@@ -34,7 +36,7 @@ void VulkanApp::run() {
     cleanup();
 }
 
-// ƒEƒBƒ“ƒhƒE‚Ì‰Šú‰»
+// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®åˆæœŸåŒ–
 void VulkanApp::initWindow() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -44,13 +46,13 @@ void VulkanApp::initWindow() {
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 }
 
-// ƒtƒŒ[ƒ€ƒoƒbƒtƒ@ƒŠƒTƒCƒYƒR[ƒ‹ƒoƒbƒN
+// ãƒ•ãƒ¬ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ãƒªã‚µã‚¤ã‚ºã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯
 void VulkanApp::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
     auto app = reinterpret_cast<VulkanApp*>(glfwGetWindowUserPointer(window));
     app->framebufferResized = true;
 }
 
-// Vulkan‚Ì‰Šú‰»
+// Vulkanã®åˆæœŸåŒ–
 void VulkanApp::initVulkan() {
     createInstance();
     setupDebugMessenger();
@@ -73,7 +75,7 @@ void VulkanApp::initVulkan() {
 }
 
 /// <summary>
-/// ƒƒCƒ“ƒ‹[ƒv
+/// ãƒ¡ã‚¤ãƒ³ãƒ«ãƒ¼ãƒ—
 /// </summary>
 void VulkanApp::mainLoop() {
     while (!glfwWindowShouldClose(window)) {
@@ -85,12 +87,12 @@ void VulkanApp::mainLoop() {
 }
 
 /// <summary>
-/// ƒNƒŠ[ƒ“ƒAƒbƒv
+/// ã‚¯ãƒªãƒ¼ãƒ³ã‚¢ãƒƒãƒ—
 /// </summary>
 void VulkanApp::cleanup() {
     cleanupSwapChain();
 
-    // ƒ`ƒƒƒ“ƒNƒƒbƒVƒ…‚ÌƒNƒŠ[ƒ“ƒAƒbƒv
+    // ãƒãƒ£ãƒ³ã‚¯ãƒ¡ãƒƒã‚·ãƒ¥ã®ã‚¯ãƒªãƒ¼ãƒ³ã‚¢ãƒƒãƒ—
     for (auto& [coord, mesh] : chunkMeshes) {
         vkDestroyBuffer(device, mesh.indexBuffer, nullptr);
         vkFreeMemory(device, mesh.indexBufferMemory, nullptr);
@@ -98,7 +100,7 @@ void VulkanApp::cleanup() {
         vkFreeMemory(device, mesh.vertexBufferMemory, nullptr);
     }
 
-    // ƒ†ƒjƒtƒH[ƒ€ƒoƒbƒtƒ@‚ÌƒNƒŠ[ƒ“ƒAƒbƒvi•ÏXj
+    // ãƒ¦ãƒ‹ãƒ•ã‚©ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã®ã‚¯ãƒªãƒ¼ãƒ³ã‚¢ãƒƒãƒ—ï¼ˆå¤‰æ›´ï¼‰
     for (size_t i = 0; i < uniformBuffers.size(); i++) {
         vkDestroyBuffer(device, uniformBuffers[i], nullptr);
         vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
@@ -111,7 +113,7 @@ void VulkanApp::cleanup() {
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
 
-    // “¯ŠúƒIƒuƒWƒFƒNƒg‚Ì”jŠü
+    // åŒæœŸã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®ç ´æ£„
     for (size_t i = 0; i < swapChainImages.size(); i++) {
         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
@@ -134,12 +136,12 @@ void VulkanApp::cleanup() {
 }
 
 /// <summary>
-/// ƒXƒƒbƒvƒ`ƒF[ƒ“‚ÌƒNƒŠ[ƒ“ƒAƒbƒv
+/// ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®ã‚¯ãƒªãƒ¼ãƒ³ã‚¢ãƒƒãƒ—
 /// </summary>
 void VulkanApp::cleanupSwapChain() {
-    vkDestroyImageView(device, depthImageView, nullptr);  // ’Ç‰Á
-    vkDestroyImage(device, depthImage, nullptr);          // ’Ç‰Á
-    vkFreeMemory(device, depthImageMemory, nullptr);      // ’Ç‰Á
+    vkDestroyImageView(device, depthImageView, nullptr);  // è¿½åŠ 
+    vkDestroyImage(device, depthImage, nullptr);          // è¿½åŠ 
+    vkFreeMemory(device, depthImageMemory, nullptr);      // è¿½åŠ 
 
     for (auto framebuffer : swapChainFramebuffers) {
         vkDestroyFramebuffer(device, framebuffer, nullptr);
@@ -153,7 +155,7 @@ void VulkanApp::cleanupSwapChain() {
 }
 
 /// <summary>
-/// ƒXƒƒbƒvƒ`ƒF[ƒ“‚ÌÄì¬
+/// ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®å†ä½œæˆ
 /// </summary>
 void VulkanApp::recreateSwapChain() {
     int width = 0, height = 0;
@@ -165,16 +167,16 @@ void VulkanApp::recreateSwapChain() {
 
     vkDeviceWaitIdle(device);
 
-    // ŒÃ‚¢ƒ†ƒjƒtƒH[ƒ€ƒoƒbƒtƒ@‚ğ”jŠüi’Ç‰Áj
+    // å¤ã„ãƒ¦ãƒ‹ãƒ•ã‚©ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã‚’ç ´æ£„ï¼ˆè¿½åŠ ï¼‰
     for (size_t i = 0; i < uniformBuffers.size(); i++) {
         vkDestroyBuffer(device, uniformBuffers[i], nullptr);
         vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
     }
 
-    // ŒÃ‚¢ƒfƒXƒNƒŠƒvƒ^ƒv[ƒ‹‚ğ”jŠüi’Ç‰Áj
+    // å¤ã„ãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ—ãƒ¼ãƒ«ã‚’ç ´æ£„ï¼ˆè¿½åŠ ï¼‰
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
-    // ŒÃ‚¢“¯ŠúƒIƒuƒWƒFƒNƒg‚ğ”jŠü
+    // å¤ã„åŒæœŸã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç ´æ£„
     for (size_t i = 0; i < swapChainImages.size(); i++) {
         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
@@ -188,14 +190,14 @@ void VulkanApp::recreateSwapChain() {
     createDepthResources();
     createFramebuffers();
 
-    // ƒ†ƒjƒtƒH[ƒ€ƒoƒbƒtƒ@‚ğÄì¬i’Ç‰Áj
+    // ãƒ¦ãƒ‹ãƒ•ã‚©ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã‚’å†ä½œæˆï¼ˆè¿½åŠ ï¼‰
     createUniformBuffers();
 
-    // ƒfƒXƒNƒŠƒvƒ^ƒv[ƒ‹‚ÆƒZƒbƒg‚ğÄì¬i’Ç‰Áj
+    // ãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ—ãƒ¼ãƒ«ã¨ã‚»ãƒƒãƒˆã‚’å†ä½œæˆï¼ˆè¿½åŠ ï¼‰
     createDescriptorPool();
     createDescriptorSets();
 
-    // V‚µ‚¢“¯ŠúƒIƒuƒWƒFƒNƒg‚ğì¬
+    // æ–°ã—ã„åŒæœŸã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ä½œæˆ
     imageAvailableSemaphores.clear();
     renderFinishedSemaphores.clear();
     inFlightFences.clear();
@@ -221,7 +223,7 @@ void VulkanApp::recreateSwapChain() {
 }
 
 /// <summary>
-/// VulkanƒCƒ“ƒXƒ^ƒ“ƒX‚Ìì¬
+/// Vulkanã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createInstance() {
     if (enableValidationLayers && !checkValidationLayerSupport()) {
@@ -263,10 +265,10 @@ void VulkanApp::createInstance() {
 }
 
 /// <summary>
-/// ƒoƒŠƒf[ƒVƒ‡ƒ“ƒŒƒCƒ„[‚ÌƒTƒ|[ƒgŠm”F
+/// ãƒãƒªãƒ‡ãƒ¼ã‚·ãƒ§ãƒ³ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®ã‚µãƒãƒ¼ãƒˆç¢ºèª
 /// </summary>
 /// <returns>
-/// ƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚ê‚ÎtrueA‚»‚¤‚Å‚È‚¯‚ê‚Îfalse
+/// ã‚µãƒãƒ¼ãƒˆã•ã‚Œã¦ã„ã‚Œã°trueã€ãã†ã§ãªã‘ã‚Œã°false
 /// </returns>
 bool VulkanApp::checkValidationLayerSupport() {
     uint32_t layerCount;
@@ -294,10 +296,10 @@ bool VulkanApp::checkValidationLayerSupport() {
 }
 
 /// <summary>
-/// •K—v‚ÈŠg’£‹@”\‚Ìæ“¾
+/// å¿…è¦ãªæ‹¡å¼µæ©Ÿèƒ½ã®å–å¾—
 /// </summary>
 /// <returns>
-/// •K—v‚ÈŠg’£‹@”\‚ÌƒŠƒXƒg
+/// å¿…è¦ãªæ‹¡å¼µæ©Ÿèƒ½ã®ãƒªã‚¹ãƒˆ
 /// </returns>
 std::vector<const char*> VulkanApp::getRequiredExtensions() {
     uint32_t glfwExtensionCount = 0;
@@ -314,13 +316,13 @@ std::vector<const char*> VulkanApp::getRequiredExtensions() {
 }
 
 /// <summary>
-/// ƒfƒoƒbƒOƒR[ƒ‹ƒoƒbƒNŠÖ”
+/// ãƒ‡ãƒãƒƒã‚°ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯é–¢æ•°
 /// </summary>
-/// <param name="messageSeverity">ƒƒbƒZ[ƒW‚Ìd‘å“x</param>
-/// <param name="messageType">ƒƒbƒZ[ƒW‚Ìƒ^ƒCƒv</param>
-/// <param name="pCallbackData">ƒR[ƒ‹ƒoƒbƒNƒf[ƒ^</param>
-/// <param name="pUserData">ƒ†[ƒU[ƒf[ƒ^</param>
-/// <returns>VK_FALSE‚ğ•Ô‚·</returns>
+/// <param name="messageSeverity">ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã®é‡å¤§åº¦</param>
+/// <param name="messageType">ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã®ã‚¿ã‚¤ãƒ—</param>
+/// <param name="pCallbackData">ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ãƒ‡ãƒ¼ã‚¿</param>
+/// <param name="pUserData">ãƒ¦ãƒ¼ã‚¶ãƒ¼ãƒ‡ãƒ¼ã‚¿</param>
+/// <returns>VK_FALSEã‚’è¿”ã™</returns>
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanApp::debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -333,7 +335,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanApp::debugCallback(
 }
 
 /// <summary>
-/// ƒfƒoƒbƒOƒƒbƒZƒ“ƒWƒƒ[‚Ìİ’è
+/// ãƒ‡ãƒãƒƒã‚°ãƒ¡ãƒƒã‚»ãƒ³ã‚¸ãƒ£ãƒ¼ã®è¨­å®š
 /// </summary>
 void VulkanApp::setupDebugMessenger() {
     if (!enableValidationLayers) return;
@@ -347,9 +349,9 @@ void VulkanApp::setupDebugMessenger() {
 }
 
 /// <summary>
-/// ƒfƒoƒbƒOƒƒbƒZƒ“ƒWƒƒ[ì¬î•ñ‚Ìİ’è
+/// ãƒ‡ãƒãƒƒã‚°ãƒ¡ãƒƒã‚»ãƒ³ã‚¸ãƒ£ãƒ¼ä½œæˆæƒ…å ±ã®è¨­å®š
 /// </summary>
-/// <param name="createInfo">ƒfƒoƒbƒOƒƒbƒZƒ“ƒWƒƒ[ì¬î•ñ‚ÌQÆ</param>
+/// <param name="createInfo">ãƒ‡ãƒãƒƒã‚°ãƒ¡ãƒƒã‚»ãƒ³ã‚¸ãƒ£ãƒ¼ä½œæˆæƒ…å ±ã®å‚ç…§</param>
 void VulkanApp::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
     createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -363,13 +365,13 @@ void VulkanApp::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfo
 }
 
 /// <summary>
-/// ƒfƒoƒbƒOƒƒbƒZƒ“ƒWƒƒ[‚Ìì¬
+/// ãƒ‡ãƒãƒƒã‚°ãƒ¡ãƒƒã‚»ãƒ³ã‚¸ãƒ£ãƒ¼ã®ä½œæˆ
 /// </summary>
-/// <param name="instance">VulkanƒCƒ“ƒXƒ^ƒ“ƒX</param>
-/// <param name="pCreateInfo">ƒfƒoƒbƒOƒƒbƒZƒ“ƒWƒƒ[ì¬î•ñ‚Ö‚Ìƒ|ƒCƒ“ƒ^</param>
-/// <param name="pAllocator">ƒJƒXƒ^ƒ€ƒAƒƒP[ƒ^‚Ö‚Ìƒ|ƒCƒ“ƒ^inullptr‚Ìê‡‚ÍƒfƒtƒHƒ‹ƒgƒAƒƒP[ƒ^‚ğg—pj</param>
-/// <param name="pDebugMessenger">ì¬‚³‚ê‚½ƒfƒoƒbƒOƒƒbƒZƒ“ƒWƒƒ[‚Ìƒnƒ“ƒhƒ‹‚ğŠi”[‚·‚é‚½‚ß‚Ìƒ|ƒCƒ“ƒ^</param>
-/// <returns>VkResult: ¬Œ÷‚·‚ê‚ÎVK_SUCCESSA¸”s‚·‚ê‚ÎƒGƒ‰[ƒR[ƒh</returns>
+/// <param name="instance">Vulkanã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹</param>
+/// <param name="pCreateInfo">ãƒ‡ãƒãƒƒã‚°ãƒ¡ãƒƒã‚»ãƒ³ã‚¸ãƒ£ãƒ¼ä½œæˆæƒ…å ±ã¸ã®ãƒã‚¤ãƒ³ã‚¿</param>
+/// <param name="pAllocator">ã‚«ã‚¹ã‚¿ãƒ ã‚¢ãƒ­ã‚±ãƒ¼ã‚¿ã¸ã®ãƒã‚¤ãƒ³ã‚¿ï¼ˆnullptrã®å ´åˆã¯ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã‚¢ãƒ­ã‚±ãƒ¼ã‚¿ã‚’ä½¿ç”¨ï¼‰</param>
+/// <param name="pDebugMessenger">ä½œæˆã•ã‚ŒãŸãƒ‡ãƒãƒƒã‚°ãƒ¡ãƒƒã‚»ãƒ³ã‚¸ãƒ£ãƒ¼ã®ãƒãƒ³ãƒ‰ãƒ«ã‚’æ ¼ç´ã™ã‚‹ãŸã‚ã®ãƒã‚¤ãƒ³ã‚¿</param>
+/// <returns>VkResult: æˆåŠŸã™ã‚Œã°VK_SUCCESSã€å¤±æ•—ã™ã‚Œã°ã‚¨ãƒ©ãƒ¼ã‚³ãƒ¼ãƒ‰</returns>
 VkResult VulkanApp::CreateDebugUtilsMessengerEXT(VkInstance instance,
     const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
     const VkAllocationCallbacks* pAllocator,
@@ -386,11 +388,11 @@ VkResult VulkanApp::CreateDebugUtilsMessengerEXT(VkInstance instance,
 }
 
 /// <summary>
-/// ƒfƒoƒbƒOƒƒbƒZƒ“ƒWƒƒ[‚Ì”jŠü
+/// ãƒ‡ãƒãƒƒã‚°ãƒ¡ãƒƒã‚»ãƒ³ã‚¸ãƒ£ãƒ¼ã®ç ´æ£„
 /// </summary>
-/// <param name="instance">VulkanƒCƒ“ƒXƒ^ƒ“ƒX</param>
-/// <param name="debugMessenger">”jŠü‚·‚éƒfƒoƒbƒOƒƒbƒZƒ“ƒWƒƒ[‚Ìƒnƒ“ƒhƒ‹</param>
-/// <param name="pAllocator">ƒJƒXƒ^ƒ€ƒAƒƒP[ƒ^‚Ö‚Ìƒ|ƒCƒ“ƒ^inullptr‚Ìê‡‚ÍƒfƒtƒHƒ‹ƒgƒAƒƒP[ƒ^‚ğg—pj</param>
+/// <param name="instance">Vulkanã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹</param>
+/// <param name="debugMessenger">ç ´æ£„ã™ã‚‹ãƒ‡ãƒãƒƒã‚°ãƒ¡ãƒƒã‚»ãƒ³ã‚¸ãƒ£ãƒ¼ã®ãƒãƒ³ãƒ‰ãƒ«</param>
+/// <param name="pAllocator">ã‚«ã‚¹ã‚¿ãƒ ã‚¢ãƒ­ã‚±ãƒ¼ã‚¿ã¸ã®ãƒã‚¤ãƒ³ã‚¿ï¼ˆnullptrã®å ´åˆã¯ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã‚¢ãƒ­ã‚±ãƒ¼ã‚¿ã‚’ä½¿ç”¨ï¼‰</param>
 void VulkanApp::DestroyDebugUtilsMessengerEXT(VkInstance instance,
     VkDebugUtilsMessengerEXT debugMessenger,
     const VkAllocationCallbacks* pAllocator) {
@@ -403,7 +405,7 @@ void VulkanApp::DestroyDebugUtilsMessengerEXT(VkInstance instance,
 }
 
 /// <summary>
-/// ƒEƒBƒ“ƒhƒEƒT[ƒtƒFƒX‚Ìì¬
+/// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã‚µãƒ¼ãƒ•ã‚§ã‚¹ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createSurface() {
     if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
@@ -412,7 +414,7 @@ void VulkanApp::createSurface() {
 }
 
 /// <summary>
-/// •¨—ƒfƒoƒCƒX‚Ì‘I‘ğ
+/// ç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã®é¸æŠ
 /// </summary>
 void VulkanApp::pickPhysicalDevice() {
     uint32_t deviceCount = 0;
@@ -438,10 +440,10 @@ void VulkanApp::pickPhysicalDevice() {
 }
 
 /// <summary>
-/// ƒfƒoƒCƒX‚Ì“K‡«ƒ`ƒFƒbƒN
+/// ãƒ‡ãƒã‚¤ã‚¹ã®é©åˆæ€§ãƒã‚§ãƒƒã‚¯
 /// </summary>
-/// <param name="device">ƒ`ƒFƒbƒN‚·‚é•¨—ƒfƒoƒCƒX‚Ìƒnƒ“ƒhƒ‹</param>
-/// <returns>“K‡‚·‚éê‡‚ÍtrueA‚»‚¤‚Å‚È‚¯‚ê‚Îfalse</returns>
+/// <param name="device">ãƒã‚§ãƒƒã‚¯ã™ã‚‹ç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã®ãƒãƒ³ãƒ‰ãƒ«</param>
+/// <returns>é©åˆã™ã‚‹å ´åˆã¯trueã€ãã†ã§ãªã‘ã‚Œã°false</returns>
 bool VulkanApp::isDeviceSuitable(VkPhysicalDevice device) {
     QueueFamilyIndices indices = findQueueFamilies(device);
 
@@ -457,10 +459,10 @@ bool VulkanApp::isDeviceSuitable(VkPhysicalDevice device) {
 }
 
 /// <summary>
-/// ƒfƒoƒCƒXŠg’£‹@”\‚ÌƒTƒ|[ƒgŠm”F
+/// ãƒ‡ãƒã‚¤ã‚¹æ‹¡å¼µæ©Ÿèƒ½ã®ã‚µãƒãƒ¼ãƒˆç¢ºèª
 /// </summary>
-/// <param name="device">ƒ`ƒFƒbƒN‚·‚é•¨—ƒfƒoƒCƒX‚Ìƒnƒ“ƒhƒ‹</param>
-/// <returns>ƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚ê‚ÎtrueA‚»‚¤‚Å‚È‚¯‚ê‚Îfalse</returns>
+/// <param name="device">ãƒã‚§ãƒƒã‚¯ã™ã‚‹ç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã®ãƒãƒ³ãƒ‰ãƒ«</param>
+/// <returns>ã‚µãƒãƒ¼ãƒˆã•ã‚Œã¦ã„ã‚Œã°trueã€ãã†ã§ãªã‘ã‚Œã°false</returns>
 bool VulkanApp::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     uint32_t extensionCount;
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
@@ -478,10 +480,10 @@ bool VulkanApp::checkDeviceExtensionSupport(VkPhysicalDevice device) {
 }
 
 /// <summary>
-/// ƒLƒ…[ƒtƒ@ƒ~ƒŠ[‚ÌŒŸõ
+/// ã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªãƒ¼ã®æ¤œç´¢
 /// </summary>
-/// <param name="device">ŒŸõ‚·‚é•¨—ƒfƒoƒCƒX‚Ìƒnƒ“ƒhƒ‹</param>
-/// <returns>Œ©‚Â‚©‚Á‚½ƒLƒ…[ƒtƒ@ƒ~ƒŠ[‚ÌƒCƒ“ƒfƒbƒNƒX‚ğŠÜ‚ŞQueueFamilyIndices\‘¢‘Ì</returns>
+/// <param name="device">æ¤œç´¢ã™ã‚‹ç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã®ãƒãƒ³ãƒ‰ãƒ«</param>
+/// <returns>è¦‹ã¤ã‹ã£ãŸã‚­ãƒ¥ãƒ¼ãƒ•ã‚¡ãƒŸãƒªãƒ¼ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã‚’å«ã‚€QueueFamilyIndicesæ§‹é€ ä½“</returns>
 VulkanApp::QueueFamilyIndices VulkanApp::findQueueFamilies(VkPhysicalDevice device) {
     QueueFamilyIndices indices;
 
@@ -515,7 +517,7 @@ VulkanApp::QueueFamilyIndices VulkanApp::findQueueFamilies(VkPhysicalDevice devi
 }
 
 /// <summary>
-/// ˜_—ƒfƒoƒCƒX‚Ìì¬
+/// è«–ç†ãƒ‡ãƒã‚¤ã‚¹ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createLogicalDevice() {
     QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
@@ -563,10 +565,10 @@ void VulkanApp::createLogicalDevice() {
 }
 
 /// <summary>
-/// ƒXƒƒbƒvƒ`ƒF[ƒ“ƒTƒ|[ƒg‚Ì–â‚¢‡‚í‚¹
+/// ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã‚µãƒãƒ¼ãƒˆã®å•ã„åˆã‚ã›
 /// </summary>
-/// <param name="device">–â‚¢‡‚í‚¹‚é•¨—ƒfƒoƒCƒX‚Ìƒnƒ“ƒhƒ‹</param>
-/// <returns>ƒXƒƒbƒvƒ`ƒF[ƒ“ƒTƒ|[ƒg‚ÌÚ×‚ğŠÜ‚ŞSwapChainSupportDetails\‘¢‘Ì</returns>
+/// <param name="device">å•ã„åˆã‚ã›ã‚‹ç‰©ç†ãƒ‡ãƒã‚¤ã‚¹ã®ãƒãƒ³ãƒ‰ãƒ«</param>
+/// <returns>ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã‚µãƒãƒ¼ãƒˆã®è©³ç´°ã‚’å«ã‚€SwapChainSupportDetailsæ§‹é€ ä½“</returns>
 VulkanApp::SwapChainSupportDetails VulkanApp::querySwapChainSupport(VkPhysicalDevice device) {
     SwapChainSupportDetails details;
 
@@ -592,10 +594,10 @@ VulkanApp::SwapChainSupportDetails VulkanApp::querySwapChainSupport(VkPhysicalDe
 }
 
 /// <summary>
-/// ƒXƒƒbƒvƒT[ƒtƒFƒXƒtƒH[ƒ}ƒbƒg‚Ì‘I‘ğ
+/// ã‚¹ãƒ¯ãƒƒãƒ—ã‚µãƒ¼ãƒ•ã‚§ã‚¹ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆã®é¸æŠ
 /// </summary>
-/// <param name="availableFormats">—˜—p‰Â”\‚ÈƒXƒƒbƒvƒT[ƒtƒFƒXƒtƒH[ƒ}ƒbƒg‚ÌƒŠƒXƒg</param>
-/// <returns>‘I‘ğ‚³‚ê‚½ƒXƒƒbƒvƒT[ƒtƒFƒXƒtƒH[ƒ}ƒbƒg</returns>
+/// <param name="availableFormats">åˆ©ç”¨å¯èƒ½ãªã‚¹ãƒ¯ãƒƒãƒ—ã‚µãƒ¼ãƒ•ã‚§ã‚¹ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆã®ãƒªã‚¹ãƒˆ</param>
+/// <returns>é¸æŠã•ã‚ŒãŸã‚¹ãƒ¯ãƒƒãƒ—ã‚µãƒ¼ãƒ•ã‚§ã‚¹ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆ</returns>
 VkSurfaceFormatKHR VulkanApp::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
     for (const auto& availableFormat : availableFormats) {
         if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
@@ -608,10 +610,10 @@ VkSurfaceFormatKHR VulkanApp::chooseSwapSurfaceFormat(const std::vector<VkSurfac
 }
 
 /// <summary>
-/// ƒXƒƒbƒvƒvƒŒƒ[ƒ“ƒgƒ‚[ƒh‚Ì‘I‘ğ
+/// ã‚¹ãƒ¯ãƒƒãƒ—ãƒ—ãƒ¬ã‚¼ãƒ³ãƒˆãƒ¢ãƒ¼ãƒ‰ã®é¸æŠ
 /// </summary>
-/// <param name="availablePresentModes">—˜—p‰Â”\‚ÈƒXƒƒbƒvƒvƒŒƒ[ƒ“ƒgƒ‚[ƒh‚ÌƒŠƒXƒg</param>
-/// <returns>‘I‘ğ‚³‚ê‚½ƒXƒƒbƒvƒvƒŒƒ[ƒ“ƒgƒ‚[ƒh</returns>
+/// <param name="availablePresentModes">åˆ©ç”¨å¯èƒ½ãªã‚¹ãƒ¯ãƒƒãƒ—ãƒ—ãƒ¬ã‚¼ãƒ³ãƒˆãƒ¢ãƒ¼ãƒ‰ã®ãƒªã‚¹ãƒˆ</param>
+/// <returns>é¸æŠã•ã‚ŒãŸã‚¹ãƒ¯ãƒƒãƒ—ãƒ—ãƒ¬ã‚¼ãƒ³ãƒˆãƒ¢ãƒ¼ãƒ‰</returns>
 VkPresentModeKHR VulkanApp::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
     for (const auto& availablePresentMode : availablePresentModes) {
         if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
@@ -623,10 +625,10 @@ VkPresentModeKHR VulkanApp::chooseSwapPresentMode(const std::vector<VkPresentMod
 }
 
 /// <summary>
-/// ƒXƒƒbƒvƒGƒNƒXƒeƒ“ƒg‚Ì‘I‘ğ
+/// ã‚¹ãƒ¯ãƒƒãƒ—ã‚¨ã‚¯ã‚¹ãƒ†ãƒ³ãƒˆã®é¸æŠ
 /// </summary>
-/// <param name="capabilities">ƒXƒƒbƒvƒ`ƒF[ƒ“‚ÌƒT[ƒtƒFƒX”\—Í‚ğŠÜ‚ŞVkSurfaceCapabilitiesKHR\‘¢‘Ì</param>
-/// <returns>‘I‘ğ‚³‚ê‚½ƒXƒƒbƒvƒGƒNƒXƒeƒ“ƒg</returns>
+/// <param name="capabilities">ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®ã‚µãƒ¼ãƒ•ã‚§ã‚¹èƒ½åŠ›ã‚’å«ã‚€VkSurfaceCapabilitiesKHRæ§‹é€ ä½“</param>
+/// <returns>é¸æŠã•ã‚ŒãŸã‚¹ãƒ¯ãƒƒãƒ—ã‚¨ã‚¯ã‚¹ãƒ†ãƒ³ãƒˆ</returns>
 VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
     if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
         return capabilities.currentExtent;
@@ -648,7 +650,7 @@ VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
 }
 
 /// <summary>
-/// ƒXƒƒbƒvƒ`ƒF[ƒ“‚Ìì¬
+/// ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createSwapChain() {
     SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
@@ -705,7 +707,7 @@ void VulkanApp::createSwapChain() {
 }
 
 /// <summary>
-/// ƒCƒ[ƒWƒrƒ…[‚Ìì¬
+/// ã‚¤ãƒ¡ãƒ¼ã‚¸ãƒ“ãƒ¥ãƒ¼ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createImageViews() {
     swapChainImageViews.resize(swapChainImages.size());
@@ -733,10 +735,10 @@ void VulkanApp::createImageViews() {
 }
 
 /// <summary>
-/// ƒtƒ@ƒCƒ‹‚Ì“Ç‚İ‚İ
+/// ãƒ•ã‚¡ã‚¤ãƒ«ã®èª­ã¿è¾¼ã¿
 /// </summary>
-/// <param name="filename">“Ç‚İ‚Şƒtƒ@ƒCƒ‹‚ÌƒpƒX</param>
-/// <returns>ƒtƒ@ƒCƒ‹‚Ì“à—e‚ğŠi”[‚µ‚½ƒoƒCƒg”z—ñ</returns>
+/// <param name="filename">èª­ã¿è¾¼ã‚€ãƒ•ã‚¡ã‚¤ãƒ«ã®ãƒ‘ã‚¹</param>
+/// <returns>ãƒ•ã‚¡ã‚¤ãƒ«ã®å†…å®¹ã‚’æ ¼ç´ã—ãŸãƒã‚¤ãƒˆé…åˆ—</returns>
 static std::vector<char> readFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -756,11 +758,11 @@ static std::vector<char> readFile(const std::string& filename) {
 }
 
 /// <summary>
-/// ƒVƒF[ƒ_[ƒ‚ƒWƒ…[ƒ‹‚Ìì¬
+/// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«ã®ä½œæˆ
 /// </summary>
-/// <param name="device">Vulkan˜_—ƒfƒoƒCƒX‚Ìƒnƒ“ƒhƒ‹</param>
-/// <param name="code">ƒVƒF[ƒ_[ƒoƒCƒgƒR[ƒh‚ğŠi”[‚µ‚½ƒoƒCƒg”z—ñ</param>
-/// <returns>ì¬‚³‚ê‚½ƒVƒF[ƒ_[ƒ‚ƒWƒ…[ƒ‹‚Ìƒnƒ“ƒhƒ‹</returns>
+/// <param name="device">Vulkanè«–ç†ãƒ‡ãƒã‚¤ã‚¹ã®ãƒãƒ³ãƒ‰ãƒ«</param>
+/// <param name="code">ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒã‚¤ãƒˆã‚³ãƒ¼ãƒ‰ã‚’æ ¼ç´ã—ãŸãƒã‚¤ãƒˆé…åˆ—</param>
+/// <returns>ä½œæˆã•ã‚ŒãŸã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«ã®ãƒãƒ³ãƒ‰ãƒ«</returns>
 VkShaderModule createShaderModule(VkDevice device, const std::vector<char>& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -776,10 +778,10 @@ VkShaderModule createShaderModule(VkDevice device, const std::vector<char>& code
 }
 
 /// <summary>
-/// ƒŒƒ“ƒ_[ƒpƒX‚Ìì¬
+/// ãƒ¬ãƒ³ãƒ€ãƒ¼ãƒ‘ã‚¹ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createRenderPass() {
-    // ƒJƒ‰[ƒAƒ^ƒbƒ`ƒƒ“ƒg
+    // ã‚«ãƒ©ãƒ¼ã‚¢ã‚¿ãƒƒãƒãƒ¡ãƒ³ãƒˆ
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapChainImageFormat;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -794,7 +796,7 @@ void VulkanApp::createRenderPass() {
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    // ƒfƒvƒXƒAƒ^ƒbƒ`ƒƒ“ƒgi’Ç‰Áj
+    // ãƒ‡ãƒ—ã‚¹ã‚¢ã‚¿ãƒƒãƒãƒ¡ãƒ³ãƒˆï¼ˆè¿½åŠ ï¼‰
     VkAttachmentDescription depthAttachment{};
     depthAttachment.format = findDepthFormat();
     depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -813,18 +815,18 @@ void VulkanApp::createRenderPass() {
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;  // ’Ç‰Á
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;  // è¿½åŠ 
 
     VkSubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
     dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;  // •ÏX
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;  // å¤‰æ›´
     dependency.srcAccessMask = 0;
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;  // •ÏX
+        VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;  // å¤‰æ›´
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
-        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;  // •ÏX
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;  // å¤‰æ›´
 
     std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
     VkRenderPassCreateInfo renderPassInfo{};
@@ -842,7 +844,7 @@ void VulkanApp::createRenderPass() {
 }
 
 /// <summary>
-/// ƒOƒ‰ƒtƒBƒbƒNƒXƒpƒCƒvƒ‰ƒCƒ“‚Ìì¬
+/// ã‚°ãƒ©ãƒ•ã‚£ãƒƒã‚¯ã‚¹ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createGraphicsPipeline() {
     auto vertShaderCode = readFile("shaders/vert.spv");
@@ -868,7 +870,7 @@ void VulkanApp::createGraphicsPipeline() {
     auto bindingDescription = Vertex::getBindingDescription();
     auto attributeDescriptions = Vertex::getAttributeDescriptions();
 
-    // ƒrƒ…[ƒ|[ƒg‚ÆƒVƒU[‚Ìİ’èi“®“IƒXƒe[ƒg‚ğg‚¤ê‡j
+    // ãƒ“ãƒ¥ãƒ¼ãƒãƒ¼ãƒˆã¨ã‚·ã‚¶ãƒ¼ã®è¨­å®šï¼ˆå‹•çš„ã‚¹ãƒ†ãƒ¼ãƒˆã‚’ä½¿ã†å ´åˆï¼‰
     std::vector<VkDynamicState> dynamicStates = {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR
@@ -906,9 +908,9 @@ void VulkanApp::createGraphicsPipeline() {
     VkPipelineViewportStateCreateInfo viewportState{};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
-    viewportState.pViewports = nullptr;  // “®“IƒXƒe[ƒg‚È‚Ì‚Ånullptr
+    viewportState.pViewports = nullptr;  // å‹•çš„ã‚¹ãƒ†ãƒ¼ãƒˆãªã®ã§nullptr
     viewportState.scissorCount = 1;
-    viewportState.pScissors = nullptr;   // “®“IƒXƒe[ƒg‚È‚Ì‚Ånullptr
+    viewportState.pScissors = nullptr;   // å‹•çš„ã‚¹ãƒ†ãƒ¼ãƒˆãªã®ã§nullptr
 
     VkPipelineRasterizationStateCreateInfo rasterizer{};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -928,7 +930,13 @@ void VulkanApp::createGraphicsPipeline() {
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_FALSE;
+    colorBlendAttachment.blendEnable = VK_TRUE;
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
     VkPipelineColorBlendStateCreateInfo colorBlending{};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -968,7 +976,7 @@ void VulkanApp::createGraphicsPipeline() {
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDynamicState = &dynamicState;  // ’Ç‰Á
+    pipelineInfo.pDynamicState = &dynamicState;  // è¿½åŠ 
     pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
@@ -985,7 +993,7 @@ void VulkanApp::createGraphicsPipeline() {
 }
 
 /// <summary>
-/// ƒtƒŒ[ƒ€ƒoƒbƒtƒ@‚Ìì¬
+/// ãƒ•ãƒ¬ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createFramebuffers() {
     swapChainFramebuffers.resize(swapChainImageViews.size());
@@ -1013,7 +1021,7 @@ void VulkanApp::createFramebuffers() {
 }
 
 /// <summary>
-/// ƒRƒ}ƒ“ƒhƒv[ƒ‹‚Ìì¬
+/// ã‚³ãƒãƒ³ãƒ‰ãƒ—ãƒ¼ãƒ«ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createCommandPool() {
     QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
@@ -1029,7 +1037,7 @@ void VulkanApp::createCommandPool() {
 }
 
 /// <summary>
-/// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚Ìì¬
+/// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createCommandBuffers() {
     commandBuffers.resize(swapChainImages.size());
@@ -1046,11 +1054,11 @@ void VulkanApp::createCommandBuffers() {
 }
 
 /// <summary>
-/// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚Ì‹L˜^
+/// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã®è¨˜éŒ²
 /// </summary>
-/// <param name="commandBuffer">‹L˜^‚·‚éƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚Ìƒnƒ“ƒhƒ‹</param>
-/// <param name="imageIndex">•`‰æ‘ÎÛ‚ÌƒXƒƒbƒvƒ`ƒF[ƒ“ƒCƒ[ƒW‚ÌƒCƒ“ƒfƒbƒNƒX</param>
-/// <param name="currentFrame">Œ»İ‚ÌƒtƒŒ[ƒ€”Ô†iƒfƒXƒNƒŠƒvƒ^ƒZƒbƒg‚Ì‘I‘ğ‚Ég—pj</param>
+/// <param name="commandBuffer">è¨˜éŒ²ã™ã‚‹ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã®ãƒãƒ³ãƒ‰ãƒ«</param>
+/// <param name="imageIndex">æç”»å¯¾è±¡ã®ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</param>
+/// <param name="currentFrame">ç¾åœ¨ã®ãƒ•ãƒ¬ãƒ¼ãƒ ç•ªå·ï¼ˆãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ã‚»ãƒƒãƒˆã®é¸æŠã«ä½¿ç”¨ï¼‰</param>
 void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer,
     uint32_t imageIndex,
     uint32_t currentFrame) {
@@ -1068,9 +1076,9 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer,
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = swapChainExtent;
 
-    // ƒNƒŠƒAƒJƒ‰[‚ÆƒfƒvƒX‚ğİ’è
+    // ã‚¯ãƒªã‚¢ã‚«ãƒ©ãƒ¼ã¨ãƒ‡ãƒ—ã‚¹ã‚’è¨­å®š
     std::array<VkClearValue, 2> clearValues{};
-    clearValues[0].color = { {0.53f, 0.81f, 0.92f, 1.0f} };  // ‹óF
+    clearValues[0].color = { {0.53f, 0.81f, 0.92f, 1.0f} };  // ç©ºè‰²
     clearValues[1].depthStencil = { 1.0f, 0 };
 
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
@@ -1080,7 +1088,7 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer,
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-    // ƒrƒ…[ƒ|[ƒg‚ÆƒVƒU[‚ğİ’èi“®“IƒXƒe[ƒg‚Ìê‡j
+    // ãƒ“ãƒ¥ãƒ¼ãƒãƒ¼ãƒˆã¨ã‚·ã‚¶ãƒ¼ã‚’è¨­å®šï¼ˆå‹•çš„ã‚¹ãƒ†ãƒ¼ãƒˆã®å ´åˆï¼‰
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -1095,12 +1103,12 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer,
     scissor.extent = swapChainExtent;
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    // ƒfƒXƒNƒŠƒvƒ^ƒZƒbƒg‚ğƒoƒCƒ“ƒh
+    // ãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ã‚»ãƒƒãƒˆã‚’ãƒã‚¤ãƒ³ãƒ‰
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         pipelineLayout, 0, 1, &descriptorSets[currentFrame],
         0, nullptr);
 
-    // Šeƒ`ƒƒƒ“ƒN‚ğ•`‰æ
+    // å„ãƒãƒ£ãƒ³ã‚¯ã‚’æç”»
     if (world) {
         for (const auto& [coord, chunk] : world->getChunks()) {
             auto meshIt = chunkMeshes.find(coord);
@@ -1127,7 +1135,7 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer,
 }
 
 /// <summary>
-/// “¯ŠúƒIƒuƒWƒFƒNƒg‚Ìì¬
+/// åŒæœŸã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®ä½œæˆ
 /// </summary>
 void VulkanApp::createSyncObjects() {
     imageAvailableSemaphores.resize(swapChainImages.size());
@@ -1151,10 +1159,10 @@ void VulkanApp::createSyncObjects() {
 }
 
 /// <summary>
-/// ƒtƒŒ[ƒ€‚Ì•`‰æ
+/// ãƒ•ãƒ¬ãƒ¼ãƒ ã®æç”»
 /// </summary>
 void VulkanApp::drawFrame() {
-    updateChunkMeshes();
+    //updateChunkMeshes();
 
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(
@@ -1177,18 +1185,18 @@ void VulkanApp::drawFrame() {
     vkWaitForFences(device, 1, &inFlightFences[imageIndex], VK_TRUE, UINT64_MAX);
     vkResetFences(device, 1, &inFlightFences[imageIndex]);
 
-    // imageIndex ‚ÅƒAƒNƒZƒXi‚±‚ê‚Å”ÍˆÍ“à‚É‚È‚éj
+    // imageIndex ã§ã‚¢ã‚¯ã‚»ã‚¹ï¼ˆã“ã‚Œã§ç¯„å›²å†…ã«ãªã‚‹ï¼‰
     updateUniformBuffer(imageIndex);
 
-	// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚ğƒŠƒZƒbƒg‚µ‚ÄÄ‹L˜^
+	// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã‚’ãƒªã‚»ãƒƒãƒˆã—ã¦å†è¨˜éŒ²
     vkResetCommandBuffer(commandBuffers[imageIndex], 0);
     recordCommandBuffer(commandBuffers[imageIndex], imageIndex, imageIndex);
 
-	// ƒRƒ}ƒ“ƒhƒoƒbƒtƒ@‚ğƒLƒ…[‚É’ño
+	// ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã‚’ã‚­ãƒ¥ãƒ¼ã«æå‡º
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-	// imageAvailableSemaphore‚ÅGPU‚ªƒCƒ[ƒW‚ğg—p‰Â”\‚É‚È‚é‚Ì‚ğ‘Ò‚Â
+	// imageAvailableSemaphoreã§GPUãŒã‚¤ãƒ¡ãƒ¼ã‚¸ã‚’ä½¿ç”¨å¯èƒ½ã«ãªã‚‹ã®ã‚’å¾…ã¤
     VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[imageIndex] };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
@@ -1230,20 +1238,29 @@ void VulkanApp::drawFrame() {
 }
 
 /// <summary>
-/// ƒfƒXƒNƒŠƒvƒ^ƒZƒbƒgƒŒƒCƒAƒEƒg‚Ìì¬
+/// ãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ã‚»ãƒƒãƒˆãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆã®ä½œæˆ
 /// </summary>
 void VulkanApp::createDescriptorSetLayout() {
-    VkDescriptorSetLayoutBinding uboLayoutBinding{};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.descriptorCount = 1;
-    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    uboLayoutBinding.pImmutableSamplers = nullptr;
+    // binding 0 â€” UBOï¼ˆæ—¢å­˜ï¼‰
+    VkDescriptorSetLayoutBinding uboBinding{};
+    uboBinding.binding = 0;
+    uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboBinding.descriptorCount = 1;
+    uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // binding 1 â€” ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚µãƒ³ãƒ—ãƒ©ãƒ¼ï¼ˆæ–°è¦è¿½åŠ ï¼‰
+    VkDescriptorSetLayoutBinding samplerBinding{};
+    samplerBinding.binding = 1;
+    samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerBinding.descriptorCount = 1;
+    samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboBinding, samplerBinding };
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &uboLayoutBinding;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
 
     if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create descriptor set layout!");
@@ -1251,7 +1268,7 @@ void VulkanApp::createDescriptorSetLayout() {
 }
 
 /// <summary>
-/// ƒ†ƒjƒtƒH[ƒ€ƒoƒbƒtƒ@‚Ìì¬
+/// ãƒ¦ãƒ‹ãƒ•ã‚©ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createUniformBuffers() {
     VkDeviceSize bufferSize = sizeof(UniformBufferObject);
@@ -1270,18 +1287,20 @@ void VulkanApp::createUniformBuffers() {
 }
 
 /// <summary>
-/// ƒfƒXƒNƒŠƒvƒ^ƒv[ƒ‹‚Ìì¬
+/// ãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ãƒ—ãƒ¼ãƒ«ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createDescriptorPool() {
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = static_cast<uint32_t>(swapChainImages.size()); // •ÏX
+    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size()); // •ÏX
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create descriptor pool!");
@@ -1289,17 +1308,17 @@ void VulkanApp::createDescriptorPool() {
 }
 
 /// <summary>
-/// ƒfƒXƒNƒŠƒvƒ^ƒZƒbƒg‚Ìì¬
+/// ãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ã‚»ãƒƒãƒˆã®ä½œæˆ
 /// </summary>
 void VulkanApp::createDescriptorSets() {
-    std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout); // •ÏX
+    std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout); // å¤‰æ›´
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size()); // •ÏX
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size()); // å¤‰æ›´
     allocInfo.pSetLayouts = layouts.data();
 
-    descriptorSets.resize(swapChainImages.size()); // •ÏX
+    descriptorSets.resize(swapChainImages.size()); // å¤‰æ›´
     if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to allocate descriptor sets!");
     }
@@ -1324,7 +1343,7 @@ void VulkanApp::createDescriptorSets() {
 }
 
 /// <summary>
-/// ƒfƒvƒXƒŠƒ\[ƒX‚Ìì¬
+/// ãƒ‡ãƒ—ã‚¹ãƒªã‚½ãƒ¼ã‚¹ã®ä½œæˆ
 /// </summary>
 void VulkanApp::createDepthResources() {
     VkFormat depthFormat = findDepthFormat();
@@ -1337,9 +1356,9 @@ void VulkanApp::createDepthResources() {
 }
 
 /// <summary>
-/// ƒ†ƒjƒtƒH[ƒ€ƒoƒbƒtƒ@‚ÌXV
+/// ãƒ¦ãƒ‹ãƒ•ã‚©ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã®æ›´æ–°
 /// </summary>
-/// <param name="currentImage">XV‚·‚éƒ†ƒjƒtƒH[ƒ€ƒoƒbƒtƒ@‚ÌƒCƒ“ƒfƒbƒNƒXiƒXƒƒbƒvƒ`ƒF[ƒ“ƒCƒ[ƒW‚ÌƒCƒ“ƒfƒbƒNƒX‚Æ‘Î‰j</param>
+/// <param name="currentImage">æ›´æ–°ã™ã‚‹ãƒ¦ãƒ‹ãƒ•ã‚©ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ï¼ˆã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã¨å¯¾å¿œï¼‰</param>
 void VulkanApp::updateUniformBuffer(uint32_t currentImage) {
     if (!player) return;
 
@@ -1348,114 +1367,20 @@ void VulkanApp::updateUniformBuffer(uint32_t currentImage) {
     ubo.view = player->getCamera().getViewMatrix();
     ubo.proj = player->getCamera().getProjectionMatrix(
         swapChainExtent.width / (float)swapChainExtent.height);
-    ubo.proj[1][1] *= -1;  // GLM‚ÍOpenGL—p‚È‚Ì‚ÅAYÀ•W‚ğ”½“]
+    ubo.proj[1][1] *= -1;  // GLMã¯OpenGLç”¨ãªã®ã§ã€Yåº§æ¨™ã‚’åè»¢
     ubo.viewPos = player->getCamera().getPosition();
 
     memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }
 
 /// <summary>
-/// ƒ`ƒƒƒ“ƒNƒƒbƒVƒ…‚ÌXV
+/// ãƒãƒƒãƒ•ã‚¡ã®ä½œæˆ
 /// </summary>
-void VulkanApp::updateChunkMeshes() {
-    if (!world) return;
-
-    for (auto& [coord, chunk] : world->getChunks()) {
-        if (!chunk->isDirty()) continue;
-
-        // ƒƒbƒVƒ…¶¬
-        std::vector<BlockVertex> blockVertices;
-        std::vector<uint32_t> indices;
-        chunk->generateMesh(blockVertices, indices);
-
-        if (indices.empty()) continue;
-
-        // VertexŒ^‚É•ÏŠ·
-        std::vector<Vertex> vertices(blockVertices.size());
-        for (size_t i = 0; i < blockVertices.size(); i++) {
-            vertices[i].pos = glm::vec3(
-                blockVertices[i].position[0] + coord.x * CHUNK_SIZE_X,
-                blockVertices[i].position[1],
-                blockVertices[i].position[2] + coord.z * CHUNK_SIZE_Z
-            );
-            vertices[i].texCoord = glm::vec2(
-                blockVertices[i].texCoord[0],
-                blockVertices[i].texCoord[1]
-            );
-            vertices[i].normal = glm::vec3(
-                blockVertices[i].normal[0],
-                blockVertices[i].normal[1],
-                blockVertices[i].normal[2]
-            );
-            vertices[i].blockType = blockVertices[i].blockType;
-        }
-
-        // Šù‘¶‚ÌƒƒbƒVƒ…‚ª‚ ‚ê‚Îíœ
-        auto it = chunkMeshes.find(coord);
-        if (it != chunkMeshes.end()) {
-            vkDestroyBuffer(device, it->second.vertexBuffer, nullptr);
-            vkFreeMemory(device, it->second.vertexBufferMemory, nullptr);
-            vkDestroyBuffer(device, it->second.indexBuffer, nullptr);
-            vkFreeMemory(device, it->second.indexBufferMemory, nullptr);
-        }
-
-        // V‚µ‚¢ƒƒbƒVƒ…‚ğì¬
-        ChunkMesh& mesh = chunkMeshes[coord];
-
-        // ’¸“_ƒoƒbƒtƒ@
-        VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertices.size();
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            stagingBuffer, stagingBufferMemory);
-
-        void* data;
-        vkMapMemory(device, stagingBufferMemory, 0, vertexBufferSize, 0, &data);
-        memcpy(data, vertices.data(), vertexBufferSize);
-        vkUnmapMemory(device, stagingBufferMemory);
-
-        createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            mesh.vertexBuffer, mesh.vertexBufferMemory);
-
-        copyBuffer(stagingBuffer, mesh.vertexBuffer, vertexBufferSize);
-
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
-
-        // ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@
-        VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
-        createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            stagingBuffer, stagingBufferMemory);
-
-        vkMapMemory(device, stagingBufferMemory, 0, indexBufferSize, 0, &data);
-        memcpy(data, indices.data(), indexBufferSize);
-        vkUnmapMemory(device, stagingBufferMemory);
-
-        createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            mesh.indexBuffer, mesh.indexBufferMemory);
-
-        copyBuffer(stagingBuffer, mesh.indexBuffer, indexBufferSize);
-
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
-
-        mesh.indexCount = static_cast<uint32_t>(indices.size());
-        mesh.needsUpdate = false;
-    }
-}
-
-/// <summary>
-/// ƒoƒbƒtƒ@‚Ìì¬
-/// </summary>
-/// <param name="size">ƒoƒbƒtƒ@ƒTƒCƒY</param>
-/// <param name="usage">ƒoƒbƒtƒ@‚Ìg—p—p“r‚ğ¦‚·ƒtƒ‰ƒOBVK_BUFFER_USAGE_VERTEX_BUFFER_BIT‚â</param>
-/// <param name="properties">ƒoƒbƒtƒ@‚Ìƒƒ‚ƒŠƒvƒƒpƒeƒB‚ğ¦‚·ƒtƒ‰ƒOBVK_MEMORY_PROPERTY_HOST_VISIBLE_BIT‚â</param>
-/// <param name="buffer">ì¬‚³‚ê‚½ƒoƒbƒtƒ@‚Ìƒnƒ“ƒhƒ‹‚ğŠi”[‚·‚é•Ï”‚Ö‚ÌQÆ</param>
-/// <param name="bufferMemory">ì¬‚³‚ê‚½ƒoƒbƒtƒ@‚Ìƒƒ‚ƒŠƒnƒ“ƒhƒ‹‚ğŠi”[‚·‚é•Ï”‚Ö‚ÌQÆ</param>
+/// <param name="size">ãƒãƒƒãƒ•ã‚¡ã‚µã‚¤ã‚º</param>
+/// <param name="usage">ãƒãƒƒãƒ•ã‚¡ã®ä½¿ç”¨ç”¨é€”ã‚’ç¤ºã™ãƒ•ãƒ©ã‚°ã€‚VK_BUFFER_USAGE_VERTEX_BUFFER_BITã‚„</param>
+/// <param name="properties">ãƒãƒƒãƒ•ã‚¡ã®ãƒ¡ãƒ¢ãƒªãƒ—ãƒ­ãƒ‘ãƒ†ã‚£ã‚’ç¤ºã™ãƒ•ãƒ©ã‚°ã€‚VK_MEMORY_PROPERTY_HOST_VISIBLE_BITã‚„</param>
+/// <param name="buffer">ä½œæˆã•ã‚ŒãŸãƒãƒƒãƒ•ã‚¡ã®ãƒãƒ³ãƒ‰ãƒ«ã‚’æ ¼ç´ã™ã‚‹å¤‰æ•°ã¸ã®å‚ç…§</param>
+/// <param name="bufferMemory">ä½œæˆã•ã‚ŒãŸãƒãƒƒãƒ•ã‚¡ã®ãƒ¡ãƒ¢ãƒªãƒãƒ³ãƒ‰ãƒ«ã‚’æ ¼ç´ã™ã‚‹å¤‰æ•°ã¸ã®å‚ç…§</param>
 void VulkanApp::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
     VkMemoryPropertyFlags properties,
     VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
@@ -1485,11 +1410,11 @@ void VulkanApp::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
 }
 
 /// <summary>
-/// ƒoƒbƒtƒ@‚ÌƒRƒs[
+/// ãƒãƒƒãƒ•ã‚¡ã®ã‚³ãƒ”ãƒ¼
 /// </summary>
-/// <param name="srcBuffer">ƒRƒs[Œ³‚Ìƒoƒbƒtƒ@‚Ìƒnƒ“ƒhƒ‹</param>
-/// <param name="dstBuffer">ƒRƒs[æ‚Ìƒoƒbƒtƒ@‚Ìƒnƒ“ƒhƒ‹</param>
-/// <param name="size">ƒRƒs[‚·‚éƒf[ƒ^‚ÌƒTƒCƒYiƒoƒCƒg’PˆÊj</param>
+/// <param name="srcBuffer">ã‚³ãƒ”ãƒ¼å…ƒã®ãƒãƒƒãƒ•ã‚¡ã®ãƒãƒ³ãƒ‰ãƒ«</param>
+/// <param name="dstBuffer">ã‚³ãƒ”ãƒ¼å…ˆã®ãƒãƒƒãƒ•ã‚¡ã®ãƒãƒ³ãƒ‰ãƒ«</param>
+/// <param name="size">ã‚³ãƒ”ãƒ¼ã™ã‚‹ãƒ‡ãƒ¼ã‚¿ã®ã‚µã‚¤ã‚ºï¼ˆãƒã‚¤ãƒˆå˜ä½ï¼‰</param>
 void VulkanApp::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1524,11 +1449,11 @@ void VulkanApp::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize 
 }
 
 /// <summary>
-/// ƒƒ‚ƒŠƒ^ƒCƒv‚ÌŒŸõ
+/// ãƒ¡ãƒ¢ãƒªã‚¿ã‚¤ãƒ—ã®æ¤œç´¢
 /// </summary>
-/// <param name="typeFilter">ƒƒ‚ƒŠƒ^ƒCƒvƒrƒbƒgƒ}ƒXƒNBVkMemoryRequirements\‘¢‘Ì‚ÌmemoryTypeBitsƒƒ“ƒo‚ğ“n‚·B</param>
-/// <param name="properties">•K—v‚Èƒƒ‚ƒŠƒvƒƒpƒeƒB‚ğ¦‚·ƒtƒ‰ƒOBVK_MEMORY_PROPERTY_HOST_VISIBLE_BIT‚âVK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT‚È‚ÇB</param>
-/// <returns>Œ©‚Â‚©‚Á‚½ƒƒ‚ƒŠƒ^ƒCƒv‚ÌƒCƒ“ƒfƒbƒNƒX</returns>
+/// <param name="typeFilter">ãƒ¡ãƒ¢ãƒªã‚¿ã‚¤ãƒ—ãƒ“ãƒƒãƒˆãƒã‚¹ã‚¯ã€‚VkMemoryRequirementsæ§‹é€ ä½“ã®memoryTypeBitsãƒ¡ãƒ³ãƒã‚’æ¸¡ã™ã€‚</param>
+/// <param name="properties">å¿…è¦ãªãƒ¡ãƒ¢ãƒªãƒ—ãƒ­ãƒ‘ãƒ†ã‚£ã‚’ç¤ºã™ãƒ•ãƒ©ã‚°ã€‚VK_MEMORY_PROPERTY_HOST_VISIBLE_BITã‚„VK_MEMORY_PROPERTY_DEVICE_LOCAL_BITãªã©ã€‚</param>
+/// <returns>è¦‹ã¤ã‹ã£ãŸãƒ¡ãƒ¢ãƒªã‚¿ã‚¤ãƒ—ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹</returns>
 uint32_t VulkanApp::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
@@ -1544,9 +1469,9 @@ uint32_t VulkanApp::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags pr
 }
 
 /// <summary>
-/// ƒfƒvƒXƒtƒH[ƒ}ƒbƒg‚ÌŒŸõ
+/// ãƒ‡ãƒ—ã‚¹ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆã®æ¤œç´¢
 /// </summary>
-/// <returns>Œ©‚Â‚©‚Á‚½ƒfƒvƒXƒtƒH[ƒ}ƒbƒg</returns>
+/// <returns>è¦‹ã¤ã‹ã£ãŸãƒ‡ãƒ—ã‚¹ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆ</returns>
 VkFormat VulkanApp::findDepthFormat() {
     return findSupportedFormat(
         { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
@@ -1556,12 +1481,12 @@ VkFormat VulkanApp::findDepthFormat() {
 }
 
 /// <summary>
-/// ƒTƒ|[ƒg‚³‚ê‚Ä‚¢‚éƒtƒH[ƒ}ƒbƒg‚ÌŒŸõ
+/// ã‚µãƒãƒ¼ãƒˆã•ã‚Œã¦ã„ã‚‹ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆã®æ¤œç´¢
 /// </summary>
-/// <param name="candidates">ŒŸõ‚·‚éƒtƒH[ƒ}ƒbƒg‚ÌŒó•âƒŠƒXƒg</param>
-/// <param name="tiling">ƒCƒ[ƒW‚Ìƒ^ƒCƒŠƒ“ƒOBVK_IMAGE_TILING_LINEAR‚Ü‚½‚ÍVK_IMAGE_TILING_OPTIMALB</param>
-/// <param name="features">•K—v‚ÈƒtƒH[ƒ}ƒbƒg‹@”\‚ğ¦‚·ƒtƒ‰ƒOBVK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT‚È‚ÇB</param>
-/// <returns>Œ©‚Â‚©‚Á‚½ƒtƒH[ƒ}ƒbƒg</returns>
+/// <param name="candidates">æ¤œç´¢ã™ã‚‹ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆã®å€™è£œãƒªã‚¹ãƒˆ</param>
+/// <param name="tiling">ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ã‚¿ã‚¤ãƒªãƒ³ã‚°ã€‚VK_IMAGE_TILING_LINEARã¾ãŸã¯VK_IMAGE_TILING_OPTIMALã€‚</param>
+/// <param name="features">å¿…è¦ãªãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆæ©Ÿèƒ½ã‚’ç¤ºã™ãƒ•ãƒ©ã‚°ã€‚VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BITãªã©ã€‚</param>
+/// <returns>è¦‹ã¤ã‹ã£ãŸãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆ</returns>
 VkFormat VulkanApp::findSupportedFormat(const std::vector<VkFormat>& candidates,
     VkImageTiling tiling,
     VkFormatFeatureFlags features) {
@@ -1581,16 +1506,16 @@ VkFormat VulkanApp::findSupportedFormat(const std::vector<VkFormat>& candidates,
 }
 
 /// <summary>
-/// ƒCƒ[ƒW‚Ìì¬
+/// ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ä½œæˆ
 /// </summary>
-/// <param name="width">ƒCƒ[ƒW‚Ì•iƒsƒNƒZƒ‹’PˆÊj</param>
-/// <param name="height">ƒCƒ[ƒW‚Ì‚‚³iƒsƒNƒZƒ‹’PˆÊj</param>
-/// <param name="format">ƒCƒ[ƒW‚ÌƒtƒH[ƒ}ƒbƒgBVkFormat—ñ‹“Œ^‚Ì’l‚ğw’èB</param>
-/// <param name="tiling">ƒCƒ[ƒW‚Ìƒ^ƒCƒŠƒ“ƒOBVK_IMAGE_TILING_LINEAR‚Ü‚½‚ÍVK_IMAGE_TILING_OPTIMALB</param>
-/// <param name="usage">ƒCƒ[ƒW‚Ìg—p—p“r‚ğ¦‚·ƒtƒ‰ƒOBVK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT‚âVK_IMAGE_USAGE_SAMPLED_BIT‚È‚ÇB</param>
-/// <param name="properties">ƒCƒ[ƒW‚Ìƒƒ‚ƒŠƒvƒƒpƒeƒB‚ğ¦‚·ƒtƒ‰ƒOBVK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT‚âVK_MEMORY_PROPERTY_HOST_VISIBLE_BIT‚È‚ÇB</param>
-/// <param name="image">ì¬‚³‚ê‚½ƒCƒ[ƒW‚Ìƒnƒ“ƒhƒ‹‚ğŠi”[‚·‚é•Ï”‚Ö‚ÌQÆ</param>
-/// <param name="imageMemory">ì¬‚³‚ê‚½ƒCƒ[ƒW‚Ìƒƒ‚ƒŠƒnƒ“ƒhƒ‹‚ğŠi”[‚·‚é•Ï”‚Ö‚ÌQÆ</param>
+/// <param name="width">ã‚¤ãƒ¡ãƒ¼ã‚¸ã®å¹…ï¼ˆãƒ”ã‚¯ã‚»ãƒ«å˜ä½ï¼‰</param>
+/// <param name="height">ã‚¤ãƒ¡ãƒ¼ã‚¸ã®é«˜ã•ï¼ˆãƒ”ã‚¯ã‚»ãƒ«å˜ä½ï¼‰</param>
+/// <param name="format">ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆã€‚VkFormatåˆ—æŒ™å‹ã®å€¤ã‚’æŒ‡å®šã€‚</param>
+/// <param name="tiling">ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ã‚¿ã‚¤ãƒªãƒ³ã‚°ã€‚VK_IMAGE_TILING_LINEARã¾ãŸã¯VK_IMAGE_TILING_OPTIMALã€‚</param>
+/// <param name="usage">ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ä½¿ç”¨ç”¨é€”ã‚’ç¤ºã™ãƒ•ãƒ©ã‚°ã€‚VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BITã‚„VK_IMAGE_USAGE_SAMPLED_BITãªã©ã€‚</param>
+/// <param name="properties">ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ãƒ¡ãƒ¢ãƒªãƒ—ãƒ­ãƒ‘ãƒ†ã‚£ã‚’ç¤ºã™ãƒ•ãƒ©ã‚°ã€‚VK_MEMORY_PROPERTY_DEVICE_LOCAL_BITã‚„VK_MEMORY_PROPERTY_HOST_VISIBLE_BITãªã©ã€‚</param>
+/// <param name="image">ä½œæˆã•ã‚ŒãŸã‚¤ãƒ¡ãƒ¼ã‚¸ã®ãƒãƒ³ãƒ‰ãƒ«ã‚’æ ¼ç´ã™ã‚‹å¤‰æ•°ã¸ã®å‚ç…§</param>
+/// <param name="imageMemory">ä½œæˆã•ã‚ŒãŸã‚¤ãƒ¡ãƒ¼ã‚¸ã®ãƒ¡ãƒ¢ãƒªãƒãƒ³ãƒ‰ãƒ«ã‚’æ ¼ç´ã™ã‚‹å¤‰æ•°ã¸ã®å‚ç…§</param>
 void VulkanApp::createImage(uint32_t width, uint32_t height, VkFormat format,
     VkImageTiling tiling, VkImageUsageFlags usage,
     VkMemoryPropertyFlags properties,
@@ -1630,12 +1555,12 @@ void VulkanApp::createImage(uint32_t width, uint32_t height, VkFormat format,
 }
 
 /// <summary>
-/// ƒCƒ[ƒWƒrƒ…[‚Ìì¬
+/// ã‚¤ãƒ¡ãƒ¼ã‚¸ãƒ“ãƒ¥ãƒ¼ã®ä½œæˆ
 /// </summary>
-/// <param name="image">ƒCƒ[ƒW‚Ìƒnƒ“ƒhƒ‹BVkImageŒ^‚Ì’l‚ğw’èB</param>
-/// <param name="format">ƒCƒ[ƒWƒrƒ…[‚ÌƒtƒH[ƒ}ƒbƒgBVkFormat—ñ‹“Œ^‚Ì’l‚ğw’èB</param>
-/// <param name="aspectFlags">ƒCƒ[ƒWƒrƒ…[‚ÌƒAƒXƒyƒNƒgƒ}ƒXƒN‚ğ¦‚·ƒtƒ‰ƒOBVK_IMAGE_ASPECT_COLOR_BIT‚âVK_IMAGE_ASPECT_DEPTH_BIT‚È‚ÇB</param>
-/// <returns>ì¬‚³‚ê‚½ƒCƒ[ƒWƒrƒ…[‚Ìƒnƒ“ƒhƒ‹BVkImageViewŒ^‚Ì’l‚ğ•Ô‚·B</returns>
+/// <param name="image">ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ãƒãƒ³ãƒ‰ãƒ«ã€‚VkImageå‹ã®å€¤ã‚’æŒ‡å®šã€‚</param>
+/// <param name="format">ã‚¤ãƒ¡ãƒ¼ã‚¸ãƒ“ãƒ¥ãƒ¼ã®ãƒ•ã‚©ãƒ¼ãƒãƒƒãƒˆã€‚VkFormatåˆ—æŒ™å‹ã®å€¤ã‚’æŒ‡å®šã€‚</param>
+/// <param name="aspectFlags">ã‚¤ãƒ¡ãƒ¼ã‚¸ãƒ“ãƒ¥ãƒ¼ã®ã‚¢ã‚¹ãƒšã‚¯ãƒˆãƒã‚¹ã‚¯ã‚’ç¤ºã™ãƒ•ãƒ©ã‚°ã€‚VK_IMAGE_ASPECT_COLOR_BITã‚„VK_IMAGE_ASPECT_DEPTH_BITãªã©ã€‚</param>
+/// <returns>ä½œæˆã•ã‚ŒãŸã‚¤ãƒ¡ãƒ¼ã‚¸ãƒ“ãƒ¥ãƒ¼ã®ãƒãƒ³ãƒ‰ãƒ«ã€‚VkImageViewå‹ã®å€¤ã‚’è¿”ã™ã€‚</returns>
 VkImageView VulkanApp::createImageView(VkImage image, VkFormat format,
     VkImageAspectFlags aspectFlags) {
     VkImageViewCreateInfo viewInfo{};
@@ -1655,4 +1580,324 @@ VkImageView VulkanApp::createImageView(VkImage image, VkFormat format,
     }
 
     return imageView;
+}
+
+/// <summary>
+/// ãƒ•ãƒ¬ãƒ¼ãƒ ã®é–‹å§‹ã€‚ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã‚¤ãƒ¡ãƒ¼ã‚¸ã®å–å¾—ã€ãƒ¦ãƒ‹ãƒ•ã‚©ãƒ¼ãƒ ãƒãƒƒãƒ•ã‚¡ã®æ›´æ–°ã€ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã®è¨˜éŒ²ã‚’è¡Œã†ã€‚
+/// </summary>
+/// <returns>æç”»å¯¾è±¡ã®ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã€‚VkResultãŒVK_ERROR_OUT_OF_DATE_KHRã®å ´åˆã¯0ã‚’è¿”ã™ã€‚</returns>
+uint32_t VulkanApp::beginFrame() {
+    uint32_t imageIndex;
+    VkResult result = vkAcquireNextImageKHR(
+        device, swapChain, UINT64_MAX,
+        imageAvailableSemaphores[currentFrame % swapChainImages.size()],
+        VK_NULL_HANDLE, &imageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreateSwapChain();
+        return 0;
+    }
+
+    vkWaitForFences(device, 1, &inFlightFences[imageIndex], VK_TRUE, UINT64_MAX);
+    vkResetFences(device, 1, &inFlightFences[imageIndex]);
+
+    updateUniformBuffer(imageIndex);
+    vkResetCommandBuffer(commandBuffers[imageIndex], 0);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    vkBeginCommandBuffer(commandBuffers[imageIndex], &beginInfo);
+
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = renderPass;
+    renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
+    renderPassInfo.renderArea.offset = { 0, 0 };
+    renderPassInfo.renderArea.extent = swapChainExtent;
+
+    std::array<VkClearValue, 2> clearValues{};
+    clearValues[0].color = { { 0.53f, 0.81f, 0.92f, 1.0f } };
+    clearValues[1].depthStencil = { 1.0f, 0 };
+    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassInfo.pClearValues = clearValues.data();
+
+    vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+    VkViewport viewport{};
+    viewport.width = static_cast<float>(swapChainExtent.width);
+    viewport.height = static_cast<float>(swapChainExtent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(commandBuffers[imageIndex], 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.extent = swapChainExtent;
+    vkCmdSetScissor(commandBuffers[imageIndex], 0, 1, &scissor);
+
+    vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS,
+        pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
+
+    return imageIndex;
+}
+
+/// <summary>
+/// ãƒ•ãƒ¬ãƒ¼ãƒ ã®çµ‚äº†ã€‚ã‚³ãƒãƒ³ãƒ‰ãƒãƒƒãƒ•ã‚¡ã®è¨˜éŒ²ã‚’çµ‚äº†ã—ã€ã‚­ãƒ¥ãƒ¼ã«æå‡ºã—ã¦ãƒ—ãƒ¬ã‚¼ãƒ³ãƒ†ãƒ¼ã‚·ãƒ§ãƒ³ã‚’è¡Œã†ã€‚
+/// </summary>
+/// <param name="imageIndex">æç”»å¯¾è±¡ã®ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã€‚beginFrame()ã®æˆ»ã‚Šå€¤ã‚’æ¸¡ã™ã“ã¨ã‚’æƒ³å®šã€‚</param>
+void VulkanApp::endFrame(uint32_t imageIndex) {
+    vkCmdEndRenderPass(commandBuffers[imageIndex]);
+    vkEndCommandBuffer(commandBuffers[imageIndex]);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[imageIndex] };
+    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    submitInfo.waitSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = waitSemaphores;
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
+
+    VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[imageIndex] };
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = signalSemaphores;
+
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[imageIndex]);
+
+    VkPresentInfoKHR presentInfo{};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = signalSemaphores;
+
+    VkSwapchainKHR swapChains[] = { swapChain };
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = swapChains;
+    presentInfo.pImageIndices = &imageIndex;
+
+    VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+        framebufferResized = false;
+        recreateSwapChain();
+    }
+
+    currentFrame++;
+}
+
+/// <summary>
+/// ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆé·ç§»ã€‚ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ä½¿ç”¨ç›®çš„ã«å¿œã˜ã¦é©åˆ‡ãªãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆã«å¤‰æ›´ã™ã‚‹ãŸã‚ã®é–¢æ•°ã€‚
+/// </summary>
+/// <param name="image">ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆã‚’é·ç§»ã•ã›ã‚‹å¯¾è±¡ã®ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ãƒãƒ³ãƒ‰ãƒ«ã€‚VkImageå‹ã®å€¤ã‚’æŒ‡å®šã€‚</param>
+/// <param name="oldLayout">é·ç§»å‰ã®ã‚¤ãƒ¡ãƒ¼ã‚¸ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆã€‚VkImageLayoutåˆ—æŒ™å‹ã®å€¤ã‚’æŒ‡å®šã€‚ä¾‹ãˆã°ã€VK_IMAGE_LAYOUT_UNDEFINEDã‚„VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMALãªã©ã€‚</param>
+/// <param name="newLayout">é·ç§»å¾Œã®ã‚¤ãƒ¡ãƒ¼ã‚¸ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆã€‚VkImageLayoutåˆ—æŒ™å‹ã®å€¤ã‚’æŒ‡å®šã€‚ä¾‹ãˆã°ã€VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMALã‚„VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMALãªã©ã€‚</param>
+void VulkanApp::transitionImageLayout(VkImage image,
+    VkImageLayout oldLayout,
+    VkImageLayout newLayout) {
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(device, &allocInfo, &cmd);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+
+    VkPipelineStageFlags srcStage, dstStage;
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+        newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    else {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+
+    vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+    vkFreeCommandBuffers(device, commandPool, 1, &cmd);
+}
+
+/// <summary>
+/// ãƒãƒƒãƒ•ã‚¡ã‹ã‚‰ã‚¤ãƒ¡ãƒ¼ã‚¸ã¸ã®ã‚³ãƒ”ãƒ¼ã€‚CPUã‹ã‚‰GPUã«ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ‡ãƒ¼ã‚¿ã‚’è»¢é€ã™ã‚‹éš›ãªã©ã«ä½¿ç”¨ã™ã‚‹é–¢æ•°ã€‚
+/// </summary>
+/// <param name="buffer">ã‚³ãƒ”ãƒ¼å…ƒã®ãƒãƒƒãƒ•ã‚¡ã®ãƒãƒ³ãƒ‰ãƒ«ã€‚VkBufferå‹ã®å€¤ã‚’æŒ‡å®šã€‚é€šå¸¸ã¯ã€CPUãŒã‚¢ã‚¯ã‚»ã‚¹å¯èƒ½ãªãƒ›ã‚¹ãƒˆãƒ¡ãƒ¢ãƒªã«ä½œæˆã•ã‚ŒãŸã‚¹ãƒ†ãƒ¼ã‚¸ãƒ³ã‚°ãƒãƒƒãƒ•ã‚¡ã‚’æŒ‡å®šã™ã‚‹ã€‚</param>
+/// <param name="image">ã‚³ãƒ”ãƒ¼å…ˆã®ã‚¤ãƒ¡ãƒ¼ã‚¸ã®ãƒãƒ³ãƒ‰ãƒ«ã€‚VkImageå‹ã®å€¤ã‚’æŒ‡å®šã€‚é€šå¸¸ã¯ã€GPUãŒã‚¢ã‚¯ã‚»ã‚¹ã™ã‚‹ãƒ‡ãƒã‚¤ã‚¹ãƒ­ãƒ¼ã‚«ãƒ«ãƒ¡ãƒ¢ãƒªã«ä½œæˆã•ã‚ŒãŸãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚¤ãƒ¡ãƒ¼ã‚¸ã‚’æŒ‡å®šã™ã‚‹ã€‚</param>
+/// <param name="width">ã‚³ãƒ”ãƒ¼ã™ã‚‹ã‚¤ãƒ¡ãƒ¼ã‚¸ã®å¹…ï¼ˆãƒ”ã‚¯ã‚»ãƒ«å˜ä½ï¼‰ã€‚ãƒ†ã‚¯ã‚¹ãƒãƒ£å…¨ä½“ã‚’ã‚³ãƒ”ãƒ¼ã™ã‚‹å ´åˆã¯ã€ã‚¤ãƒ¡ãƒ¼ã‚¸ã®å¹…ã¨åŒã˜å€¤ã‚’æŒ‡å®šã™ã‚‹ã€‚éƒ¨åˆ†çš„ã«ã‚³ãƒ”ãƒ¼ã™ã‚‹å ´åˆã¯ã€ã‚³ãƒ”ãƒ¼ã™ã‚‹é ˜åŸŸã®å¹…ã‚’æŒ‡å®šã™ã‚‹ã€‚</param>
+/// <param name="height">ã‚³ãƒ”ãƒ¼ã™ã‚‹ã‚¤ãƒ¡ãƒ¼ã‚¸ã®é«˜ã•ï¼ˆãƒ”ã‚¯ã‚»ãƒ«å˜ä½ï¼‰ã€‚ãƒ†ã‚¯ã‚¹ãƒãƒ£å…¨ä½“ã‚’ã‚³ãƒ”ãƒ¼ã™ã‚‹å ´åˆã¯ã€ã‚¤ãƒ¡ãƒ¼ã‚¸ã®é«˜ã•ã¨åŒã˜å€¤ã‚’æŒ‡å®šã™ã‚‹ã€‚éƒ¨åˆ†çš„ã«ã‚³ãƒ”ãƒ¼ã™ã‚‹å ´åˆã¯ã€ã‚³ãƒ”ãƒ¼ã™ã‚‹é ˜åŸŸã®é«˜ã•ã‚’æŒ‡å®šã™ã‚‹ã€‚</param>
+void VulkanApp::copyBufferToImage(VkBuffer buffer, VkImage image,
+    uint32_t width, uint32_t height) {
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(device, &allocInfo, &cmd);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &beginInfo);
+
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = { 0, 0, 0 };
+    region.imageExtent = { width, height, 1 };
+
+    vkCmdCopyBufferToImage(cmd, buffer, image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+    vkFreeCommandBuffers(device, commandPool, 1, &cmd);
+}
+
+/// <summary>
+/// ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®ä½œæˆã€‚CPUã‹ã‚‰GPUã«ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ‡ãƒ¼ã‚¿ã‚’è»¢é€ã—ã¦ã€ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã§ä½¿ç”¨ã§ãã‚‹ã‚ˆã†ã«ã™ã‚‹ãŸã‚ã®é–¢æ•°ã€‚
+/// </summary>
+/// <param name="width">ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®å¹…ï¼ˆãƒ”ã‚¯ã‚»ãƒ«å˜ä½ï¼‰ã€‚è»¢é€ã™ã‚‹ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ‡ãƒ¼ã‚¿ã®å¹…ã¨åŒã˜å€¤ã‚’æŒ‡å®šã™ã‚‹ã€‚</param>
+/// <param name="height">ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®é«˜ã•ï¼ˆãƒ”ã‚¯ã‚»ãƒ«å˜ä½ï¼‰ã€‚è»¢é€ã™ã‚‹ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ‡ãƒ¼ã‚¿ã®é«˜ã•ã¨åŒã˜å€¤ã‚’æŒ‡å®šã™ã‚‹ã€‚</param>
+/// <param name="pixels">ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ‡ãƒ¼ã‚¿ã¸ã®ãƒã‚¤ãƒ³ã‚¿ã€‚é€šå¸¸ã¯ã€CPUãŒã‚¢ã‚¯ã‚»ã‚¹å¯èƒ½ãªãƒ›ã‚¹ãƒˆãƒ¡ãƒ¢ãƒªã«æ ¼ç´ã•ã‚ŒãŸRGBAå½¢å¼ã®ãƒ”ã‚¯ã‚»ãƒ«ãƒ‡ãƒ¼ã‚¿ã‚’æŒ‡ã™ã€‚ãƒ‡ãƒ¼ã‚¿ã®ã‚µã‚¤ã‚ºã¯width * height * 4ãƒã‚¤ãƒˆã§ã‚ã‚‹ã“ã¨ãŒæœŸå¾…ã•ã‚Œã‚‹ã€‚</param>
+/// <returns>ä½œæˆã•ã‚ŒãŸãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’è¡¨ã™RHITextureRefå‹ã®ã‚¹ãƒãƒ¼ãƒˆãƒã‚¤ãƒ³ã‚¿ã€‚å†…éƒ¨çš„ã«ã¯ã€ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚¤ãƒ¡ãƒ¼ã‚¸ã€ã‚¤ãƒ¡ãƒ¼ã‚¸ãƒ“ãƒ¥ãƒ¼ã€ã‚µãƒ³ãƒ—ãƒ©ãƒ¼ãªã©ã®Vulkanãƒªã‚½ãƒ¼ã‚¹ã‚’ç®¡ç†ã™ã‚‹VulkanTextureã‚¯ãƒ©ã‚¹ã®ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã‚’æŒ‡ã™ã€‚</returns>
+RHITextureRef VulkanApp::createTexture(uint32_t width, uint32_t height, const void* pixels) {
+    auto tex = std::make_shared<VulkanTexture>();
+    tex->width = width;
+    tex->height = height;
+
+    VkDeviceSize imageSize = width * height * 4;
+
+    VkBuffer       stagingBuffer;
+    VkDeviceMemory stagingMemory;
+    createBuffer(imageSize,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        stagingBuffer, stagingMemory);
+
+    void* data;
+    vkMapMemory(device, stagingMemory, 0, imageSize, 0, &data);
+    memcpy(data, pixels, imageSize);
+    vkUnmapMemory(device, stagingMemory);
+
+    createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        tex->image, tex->memory);
+
+    transitionImageLayout(tex->image,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    copyBufferToImage(stagingBuffer, tex->image, width, height);
+
+    transitionImageLayout(tex->image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingMemory, nullptr);
+
+    tex->imageView = createImageView(tex->image,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        VK_IMAGE_ASPECT_COLOR_BIT);
+
+    VkSamplerCreateInfo samplerInfo{};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_NEAREST;
+    samplerInfo.minFilter = VK_FILTER_NEAREST;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.anisotropyEnable = VK_FALSE;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    vkCreateSampler(device, &samplerInfo, nullptr, &tex->sampler);
+
+    return tex;
+}
+
+/// <summary>
+/// ã‚¢ãƒˆãƒ©ã‚¹ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®è¨­å®šã€‚ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã§ä½¿ç”¨ã™ã‚‹ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’æŒ‡å®šã—ã¦ã€ãƒ‡ã‚¹ã‚¯ãƒªãƒ—ã‚¿ã‚»ãƒƒãƒˆã‚’æ›´æ–°ã™ã‚‹ãŸã‚ã®é–¢æ•°ã€‚
+/// </summary>
+/// <param name="tex">è¨­å®šã™ã‚‹ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚’è¡¨ã™RHITextureRefå‹ã®ã‚¹ãƒãƒ¼ãƒˆãƒã‚¤ãƒ³ã‚¿ã€‚å†…éƒ¨çš„ã«ã¯ã€ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚¤ãƒ¡ãƒ¼ã‚¸ã€ã‚¤ãƒ¡ãƒ¼ã‚¸ãƒ“ãƒ¥ãƒ¼ã€ã‚µãƒ³ãƒ—ãƒ©ãƒ¼ãªã©ã®Vulkanãƒªã‚½ãƒ¼ã‚¹ã‚’ç®¡ç†ã™ã‚‹VulkanTextureã‚¯ãƒ©ã‚¹ã®ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã‚’æŒ‡ã™ã“ã¨ãŒæœŸå¾…ã•ã‚Œã‚‹ã€‚</param>
+void VulkanApp::setAtlasTexture(RHITextureRef tex) {
+    atlasTexture = tex;
+    auto vkTex = std::static_pointer_cast<VulkanTexture>(tex);
+
+    for (size_t i = 0; i < swapChainImages.size(); i++) {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = uniformBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(UniformBufferObject);
+
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = vkTex->imageView;
+        imageInfo.sampler = vkTex->sampler;
+
+        std::array<VkWriteDescriptorSet, 2> writes{};
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[0].dstSet = descriptorSets[i];
+        writes[0].dstBinding = 0;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[0].descriptorCount = 1;
+        writes[0].pBufferInfo = &bufferInfo;
+
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[1].dstSet = descriptorSets[i];
+        writes[1].dstBinding = 1;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[1].descriptorCount = 1;
+        writes[1].pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(device,
+            static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    }
 }

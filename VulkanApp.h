@@ -18,6 +18,9 @@
 #include "World.h"
 #include "Player.h"
 
+#include "rhi/rhi_texture.h"
+#include "backend/vulkan/vulkan_texture.h"
+
 const int MAX_FRAMES_IN_FLIGHT = 2;  // 固定値に変更
 
 class VulkanDevice;
@@ -184,7 +187,6 @@ public:
     void createDescriptorSets();
     void createDepthResources();
     void updateUniformBuffer(uint32_t currentImage);
-    void updateChunkMeshes();
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
         VkMemoryPropertyFlags properties,
         VkBuffer& buffer, VkDeviceMemory& bufferMemory);
@@ -209,6 +211,7 @@ public:
     double lastMouseY = 0.0;
 
     Player* getPlayer() { return player; }
+    VkExtent2D swapChainExtent;
 private:
     const uint32_t WIDTH = 800;
     const uint32_t HEIGHT = 600;
@@ -226,7 +229,6 @@ private:
     VkSwapchainKHR swapChain = VK_NULL_HANDLE;
     std::vector<VkImage> swapChainImages;
     VkFormat swapChainImageFormat;
-    VkExtent2D swapChainExtent;
     std::vector<VkImageView> swapChainImageViews;
     std::vector<VkFramebuffer> swapChainFramebuffers;
 
@@ -282,4 +284,18 @@ private:
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+
+public:
+    uint32_t        beginFrame();
+    void            endFrame(uint32_t imageIndex);
+    VkCommandBuffer getCommandBuffer(uint32_t imageIndex) { return commandBuffers[imageIndex]; }
+
+public:
+    RHITextureRef createTexture(uint32_t width, uint32_t height, const void* pixels);
+    void          setAtlasTexture(RHITextureRef tex);
+    void          transitionImageLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
+    void          copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+
+    // メンバー変数
+    RHITextureRef atlasTexture;
 };

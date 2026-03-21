@@ -1,10 +1,12 @@
 //---main.cpp---
 
 #include "VulkanApp.h"
+#include "backend/vulkan/vulkan_device.h"
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
 #include <chrono>
+#include "renderer/render_pipeline.h"
 
 // マウスコールバック（グローバル関数として定義）
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
@@ -74,6 +76,18 @@ int main() {
 
         app.initVulkan();
 
+        // RHI と RenderPipeline だけ知っていればいい
+        auto device = std::make_unique<VulkanDevice>(&app);
+        RenderPipeline pipeline(device.get(), &world, &player, "textures/blocks");
+
+        // アトラスをGPUテクスチャとして登録
+        const TextureAtlas& atlas = pipeline.getAtlas();
+        RHITextureDesc texDesc;
+        texDesc.width = atlas.getWidth();
+        texDesc.height = atlas.getHeight();
+        RHITextureRef atlasTex = device->createTexture(texDesc, atlas.getData().data());
+        app.setAtlasTexture(atlasTex);
+
         // ゲームループ
         auto lastFrameTime = std::chrono::high_resolution_clock::now();
         while (!glfwWindowShouldClose(window)) {
@@ -92,13 +106,21 @@ int main() {
             player.update(deltaTime);
 
             // チャンク更新
-            glm::vec3 playerPos = player.getPosition();
-            int playerChunkX = static_cast<int>(std::floor(playerPos.x)) / CHUNK_SIZE_X;
-            int playerChunkZ = static_cast<int>(std::floor(playerPos.z)) / CHUNK_SIZE_Z;
-            world.updateLoadedChunks(playerChunkX, playerChunkZ, 8);
+            glm::vec3 pos = player.getPosition();
+            world.updateLoadedChunks(
+                static_cast<int>(std::floor(pos.x)) / CHUNK_SIZE_X,
+                static_cast<int>(std::floor(pos.z)) / CHUNK_SIZE_Z, 8);
 
-            // 描画
-            app.drawFrame();
+            // ★ ゲームループはこの2行だけ
+            pipeline.updateChunks();
+
+			const Camera& cam = player.getCamera();
+			float aspect = static_cast<float>(app.swapChainExtent.width) 
+                / app.swapChainExtent.height;
+			glm::mat4 view = cam.getViewMatrix();
+			glm::mat4 proj = cam.getProjectionMatrix(aspect);
+			proj[1][1] *= -1;  // VulkanのNDCに合わせてY軸を反転
+            pipeline.render(view,proj);
 
             // FPS表示
             static int frameCount = 0;

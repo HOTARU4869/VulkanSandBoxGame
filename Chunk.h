@@ -1,12 +1,13 @@
-//---Chunk.h---
+ï»¿//---Chunk.h---
 
 #pragma once
 #include "Block.h"
 #include <vector>
 #include <array>
 #include <memory>
+#include "renderer/texture_atlas.h"
 
-// ƒ`ƒƒƒ“ƒN‚ÌƒTƒCƒY’è‹`
+// ãƒãƒ£ãƒ³ã‚¯ã®ã‚µã‚¤ã‚ºå®šç¾©
 constexpr int CHUNK_SIZE_X = 16;
 constexpr int CHUNK_SIZE_Y = 256;
 constexpr int CHUNK_SIZE_Z = 16;
@@ -16,26 +17,29 @@ public:
     Chunk(int chunkX, int chunkZ);
     ~Chunk() = default;
 
-    // ƒuƒƒbƒN‚Ìæ“¾Eİ’è
+    // ãƒ–ãƒ­ãƒƒã‚¯ã®å–å¾—ãƒ»è¨­å®š
     Block getBlock(int x, int y, int z) const;
     void setBlock(int x, int y, int z, BlockType type);
 
-    // ƒ`ƒƒƒ“ƒNÀ•W
+    // ãƒãƒ£ãƒ³ã‚¯åº§æ¨™
     int getChunkX() const { return chunkX; }
     int getChunkZ() const { return chunkZ; }
 
-    // ƒƒbƒVƒ…¶¬
-    void generateMesh(std::vector<BlockVertex>& vertices,
-        std::vector<uint32_t>& indices);
+    // ãƒ¡ãƒƒã‚·ãƒ¥ç”Ÿæˆ
+    void generateMesh(std::vector<BlockVertex>& opaqueVerts,
+        std::vector<uint32_t>& opaqueIndices,
+        std::vector<BlockVertex>& transVerts,
+        std::vector<uint32_t>& transIndices,
+        const TextureAtlas& atlas);
 
-    // ƒ`ƒƒƒ“ƒN‚ª•ÏX‚³‚ê‚½‚©‚Ç‚¤‚©
+    // ãƒãƒ£ãƒ³ã‚¯ãŒå¤‰æ›´ã•ã‚ŒãŸã‹ã©ã†ã‹
     bool isDirty() const { return dirty; }
     void setDirty(bool d) { dirty = d; }
 
-    // —×Úƒ`ƒƒƒ“ƒN‚Ìİ’èi–ÊƒJƒŠƒ“ƒO—pj
+    // éš£æ¥ãƒãƒ£ãƒ³ã‚¯ã®è¨­å®šï¼ˆé¢ã‚«ãƒªãƒ³ã‚°ç”¨ï¼‰
     void setNeighbor(int direction, Chunk* neighbor);
 
-    // ƒ[ƒ‹ƒhÀ•W‚©‚çƒ`ƒƒƒ“ƒN“àÀ•W‚Ö‚Ì•ÏŠ·
+    // ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ã‹ã‚‰ãƒãƒ£ãƒ³ã‚¯å†…åº§æ¨™ã¸ã®å¤‰æ›
     static void worldToChunkCoords(int worldX, int worldY, int worldZ,
         int& chunkX, int& chunkZ,
         int& localX, int& localY, int& localZ);
@@ -44,29 +48,30 @@ private:
     int chunkX, chunkZ;
     bool dirty;
 
-    // ƒuƒƒbƒNƒf[ƒ^i3D”z—ñj
+    // ãƒ–ãƒ­ãƒƒã‚¯ãƒ‡ãƒ¼ã‚¿ï¼ˆ3Dé…åˆ—ï¼‰
     std::array<std::array<std::array<Block, CHUNK_SIZE_Z>, CHUNK_SIZE_Y>, CHUNK_SIZE_X> blocks;
 
-    // —×Úƒ`ƒƒƒ“ƒNi–ÊƒJƒŠƒ“ƒO—pj
+    // éš£æ¥ãƒãƒ£ãƒ³ã‚¯ï¼ˆé¢ã‚«ãƒªãƒ³ã‚°ç”¨ï¼‰
     Chunk* neighbors[4]; // 0:+X, 1:-X, 2:+Z, 3:-Z
 
-    // –Ê‚ª•`‰æ‚³‚ê‚é‚×‚«‚©ƒ`ƒFƒbƒN
+    // é¢ãŒæç”»ã•ã‚Œã‚‹ã¹ãã‹ãƒã‚§ãƒƒã‚¯
     bool shouldDrawFace(int x, int y, int z, BlockFace face) const;
 
-    // –Ê‚ğƒƒbƒVƒ…‚É’Ç‰Á
+    // é¢ã‚’ãƒ¡ãƒƒã‚·ãƒ¥ã«è¿½åŠ 
     void addFaceToMesh(int x, int y, int z, BlockFace face,
         std::vector<BlockVertex>& vertices,
-        std::vector<uint32_t>& indices);
+        std::vector<uint32_t>& indices,
+        const TextureAtlas& atlas);
 };
 
-// ChunkÀ‘•
+// Chunkå®Ÿè£…
 inline Chunk::Chunk(int chunkX, int chunkZ)
     : chunkX(chunkX), chunkZ(chunkZ), dirty(true) {
     for (int i = 0; i < 4; i++) {
         neighbors[i] = nullptr;
     }
 
-    // ƒuƒƒbƒN‚ğAir‚Å‰Šú‰»
+    // ãƒ–ãƒ­ãƒƒã‚¯ã‚’Airã§åˆæœŸåŒ–
     for (int x = 0; x < CHUNK_SIZE_X; x++) {
         for (int y = 0; y < CHUNK_SIZE_Y; y++) {
             for (int z = 0; z < CHUNK_SIZE_Z; z++) {
@@ -116,10 +121,12 @@ inline void Chunk::worldToChunkCoords(int worldX, int worldY, int worldZ,
 
 inline bool Chunk::shouldDrawFace(int x, int y, int z, BlockFace face) const {
     Block currentBlock = getBlock(x, y, z);
-    if (!currentBlock.isOpaque()) return false;
+    if (!currentBlock.isOpaque() && currentBlock.getType() != BlockType::Leaves
+        && currentBlock.getType() != BlockType::Water) {
+        return false;
+    }
 
     int nx = x, ny = y, nz = z;
-
     switch (face) {
     case BlockFace::Front:  nz++; break;
     case BlockFace::Back:   nz--; break;
@@ -129,66 +136,98 @@ inline bool Chunk::shouldDrawFace(int x, int y, int z, BlockFace face) const {
     case BlockFace::Bottom: ny--; break;
     }
 
-    // ƒ`ƒƒƒ“ƒN“à‚Ìê‡
+    // ãƒãƒ£ãƒ³ã‚¯å†…
     if (nx >= 0 && nx < CHUNK_SIZE_X &&
         ny >= 0 && ny < CHUNK_SIZE_Y &&
         nz >= 0 && nz < CHUNK_SIZE_Z) {
-        Block neighborBlock = getBlock(nx, ny, nz);
+        Block neighbor = getBlock(nx, ny, nz);
 
-        // š ’Ç‰ÁF“¯‚¶ƒ^ƒCƒv‚Ì—t‚Á‚Ï“¯m‚È‚ç–Ê‚ğ•`‰æ‚µ‚È‚¢
-        if (currentBlock.getType() == BlockType::Leaves &&
-            neighborBlock.getType() == BlockType::Leaves) {
+        // åŒã˜é€éãƒ–ãƒ­ãƒƒã‚¯åŒå£«ã¯é¢ã‚’æç”»ã—ãªã„ï¼ˆè‘‰ã£ã±åŒå£«ã€æ°´åŒå£«ï¼‰
+        if (currentBlock.getType() == neighbor.getType()) return false;
+
+        // ä¸é€æ˜ãƒ–ãƒ­ãƒƒã‚¯ã«éš£æ¥ã—ã¦ã„ã‚‹é¢ã¯æç”»ã—ãªã„
+        if (neighbor.getType() != BlockType::Air &&
+            neighbor.getType() != BlockType::Leaves &&
+            neighbor.getType() != BlockType::Water) {
             return false;
         }
-        return neighborBlock.isTransparent();
+
+        return true;
     }
 
-    // ƒ`ƒƒƒ“ƒN‹«ŠE‚Ìê‡A—×Úƒ`ƒƒƒ“ƒN‚ğƒ`ƒFƒbƒN
-    // ŠÈ—ª‰»‚Ì‚½‚ßA‹«ŠE‚Íí‚É•`‰æ
+    // â˜… ãƒãƒ£ãƒ³ã‚¯å¢ƒç•Œ â€” éš£ãƒãƒ£ãƒ³ã‚¯ã®ãƒ–ãƒ­ãƒƒã‚¯ã‚’ç¢ºèªã™ã‚‹
+    int direction = -1;
+    int localX = nx, localZ = nz;
+
+    if (nx < 0) { direction = 1; localX = CHUNK_SIZE_X - 1; }
+    else if (nx >= CHUNK_SIZE_X) { direction = 0; localX = 0; }
+    else if (nz < 0) { direction = 3; localZ = CHUNK_SIZE_Z - 1; }
+    else if (nz >= CHUNK_SIZE_Z) { direction = 2; localZ = 0; }
+
+    if (direction >= 0 && neighbors[direction] != nullptr) {
+        Block neighbor = neighbors[direction]->getBlock(localX, ny, localZ);
+        if (neighbor.getType() == currentBlock.getType()) return false;
+        if (neighbor.getType() != BlockType::Air &&
+            neighbor.getType() != BlockType::Leaves &&
+            neighbor.getType() != BlockType::Water) {
+            return false;
+        }
+        return true;
+    }
+
+    // éš£ãƒãƒ£ãƒ³ã‚¯ãŒæœªãƒ­ãƒ¼ãƒ‰ãªã‚‰æç”»ã™ã‚‹ï¼ˆfalse â†’ true ã«å¤‰æ›´ï¼‰
     return true;
 }
 
 inline void Chunk::addFaceToMesh(int x, int y, int z, BlockFace face,
     std::vector<BlockVertex>& vertices,
-    std::vector<uint32_t>& indices) {
+    std::vector<uint32_t>& indices,
+    const TextureAtlas& atlas) {
     int faceIndex = static_cast<int>(face);
     uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
 
     Block block = getBlock(x, y, z);
 
-    // 4‚Â‚Ì’¸“_‚ğ’Ç‰Á
+    // â˜… ã‚¢ãƒˆãƒ©ã‚¹ã‹ã‚‰UVåº§æ¨™ã‚’å–å¾—
+    UVRect uv = atlas.getUV(block.getType(), face);
+
+    // UVåº§æ¨™ã®4éš…ï¼ˆå·¦ä¸‹ãƒ»å³ä¸‹ãƒ»å³ä¸Šãƒ»å·¦ä¸Šï¼‰
+    float uvCoords[4][2] = {
+        { uv.u0, uv.v1 },
+        { uv.u1, uv.v1 },
+        { uv.u1, uv.v0 },
+        { uv.u0, uv.v0 },
+    };
+
     for (int i = 0; i < 4; i++) {
         BlockVertex vertex;
         vertex.position[0] = x + BLOCK_VERTICES[faceIndex][i][0];
         vertex.position[1] = y + BLOCK_VERTICES[faceIndex][i][1];
         vertex.position[2] = z + BLOCK_VERTICES[faceIndex][i][2];
-
-        vertex.texCoord[0] = BLOCK_TEX_COORDS[i][0];
-        vertex.texCoord[1] = BLOCK_TEX_COORDS[i][1];
-
+        vertex.texCoord[0] = uvCoords[i][0];
+        vertex.texCoord[1] = uvCoords[i][1];
         vertex.normal[0] = BLOCK_NORMALS[faceIndex][0];
         vertex.normal[1] = BLOCK_NORMALS[faceIndex][1];
         vertex.normal[2] = BLOCK_NORMALS[faceIndex][2];
-
         vertex.blockType = static_cast<uint32_t>(block.getType());
-
         vertices.push_back(vertex);
     }
 
-    // 2‚Â‚ÌOŠpŒ`‚ÌƒCƒ“ƒfƒbƒNƒX
     indices.push_back(baseIndex + 0);
     indices.push_back(baseIndex + 1);
     indices.push_back(baseIndex + 2);
-
     indices.push_back(baseIndex + 0);
     indices.push_back(baseIndex + 2);
     indices.push_back(baseIndex + 3);
 }
 
-inline void Chunk::generateMesh(std::vector<BlockVertex>& vertices,
-    std::vector<uint32_t>& indices) {
-    vertices.clear();
-    indices.clear();
+inline void Chunk::generateMesh(std::vector<BlockVertex>& opaqueVerts,
+    std::vector<uint32_t>& opaqueIndices,
+    std::vector<BlockVertex>& transVerts,
+    std::vector<uint32_t>& transIndices,
+    const TextureAtlas& atlas) {
+    opaqueVerts.clear();   opaqueIndices.clear();
+    transVerts.clear();    transIndices.clear();
 
     for (int x = 0; x < CHUNK_SIZE_X; x++) {
         for (int y = 0; y < CHUNK_SIZE_Y; y++) {
@@ -196,16 +235,21 @@ inline void Chunk::generateMesh(std::vector<BlockVertex>& vertices,
                 Block block = getBlock(x, y, z);
                 if (block.getType() == BlockType::Air) continue;
 
-                // Še–Ê‚ğƒ`ƒFƒbƒN‚µ‚ÄA•K—v‚È‚ç•`‰æ
+                // â˜… é€éãƒ–ãƒ­ãƒƒã‚¯ã‹ã©ã†ã‹ã§å‡ºåŠ›å…ˆã‚’åˆ†ã‘ã‚‹
+                bool isTransparent = (block.getType() == BlockType::Leaves ||
+                    block.getType() == BlockType::Water);
+
+                auto& verts = isTransparent ? transVerts : opaqueVerts;
+                auto& indices = isTransparent ? transIndices : opaqueIndices;
+
                 for (int f = 0; f < 6; f++) {
                     BlockFace face = static_cast<BlockFace>(f);
                     if (shouldDrawFace(x, y, z, face)) {
-                        addFaceToMesh(x, y, z, face, vertices, indices);
+                        addFaceToMesh(x, y, z, face, verts, indices, atlas);
                     }
                 }
             }
         }
     }
-
     dirty = false;
 }

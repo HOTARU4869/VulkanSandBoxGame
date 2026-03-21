@@ -164,15 +164,28 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="third_party\stb_image.cpp" />
     <ClCompile Include="VulkanApp.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="backend\vulkan\vulkan_buffer.h" />
+    <ClInclude Include="backend\vulkan\vulkan_command_list.h" />
+    <ClInclude Include="backend\vulkan\vulkan_device.h" />
+    <ClInclude Include="backend\vulkan\vulkan_texture.h" />
     <ClInclude Include="Block.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Chunk.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="Physics.h" />
     <ClInclude Include="Player.h" />
+    <ClInclude Include="renderer\frustum.h" />
+    <ClInclude Include="renderer\render_context.h" />
+    <ClInclude Include="renderer\render_pipeline.h" />
+    <ClInclude Include="renderer\texture_atlas.h" />
+    <ClInclude Include="rhi\rhi_device.h" />
+    <ClInclude Include="rhi\rhi_texture.h" />
+    <ClInclude Include="rhi\rhi_types.h" />
+    <ClInclude Include="third_party\stb_image.h" />
     <ClInclude Include="VulkanApp.h" />
     <ClInclude Include="World.h" />
   </ItemGroup>
