@@ -4,8 +4,9 @@
 #include "World.h"
 #include <glm/glm.hpp>
 #include <algorithm>
+#include <cmath>
+#include <cfloat>
 
-// AABB (Axis-Aligned Bounding Box) 衝突判定
 struct AABB {
     glm::vec3 min;
     glm::vec3 max;
@@ -14,316 +15,253 @@ struct AABB {
     AABB(const glm::vec3& min, const glm::vec3& max) : min(min), max(max) {}
 
     bool intersects(const AABB& other) const {
-        return (min.x <= other.max.x && max.x >= other.min.x) &&
-            (min.y <= other.max.y && max.y >= other.min.y) &&
-            (min.z <= other.max.z && max.z >= other.min.z);
-    }
-
-    glm::vec3 getCenter() const {
-        return (min + max) * 0.5f;
-    }
-
-    glm::vec3 getSize() const {
-        return max - min;
+        return (min.x < other.max.x && max.x > other.min.x) &&
+            (min.y < other.max.y && max.y > other.min.y) &&
+            (min.z < other.max.z && max.z > other.min.z);
     }
 };
 
-// レイキャスト結果
 struct RaycastHit {
-    bool hit;
-    glm::vec3 position;
-    glm::ivec3 blockPos;
-    glm::ivec3 normal;
-    float distance;
-
-
-    RaycastHit()
-        : hit(false),
-        position(0.0f),
-        blockPos(0),
-        normal(0),
-        distance(FLT_MAX) {
-    }
+    bool      hit = false;
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::ivec3 blockPos = glm::ivec3(0);
+    glm::ivec3 normal = glm::ivec3(0);
+    float     distance = FLT_MAX;
 };
 
 class Physics {
 public:
-    Physics(World* world);
+    explicit Physics(World* world) : world(world), gravity(28.0f) {}
 
-    // プレイヤーの物理演算
-    void updatePlayer(glm::vec3& position, glm::vec3& velocity,
+    // メイン物理更新。position/velocity を直接書き換え、onGround を返す
+    bool updatePlayer(glm::vec3& position, glm::vec3& velocity,
         bool onGround, float deltaTime);
 
-    // 衝突判定
-    bool checkCollision(const AABB& box, glm::vec3& position, glm::vec3& velocity);
-
-    // レイキャスト（ブロック選択用）
     RaycastHit raycast(const glm::vec3& origin, const glm::vec3& direction,
-        float maxDistance);
+        float maxDistance) const;
 
-    // 設定
-    void setGravity(float g) { gravity = g; }
-    float getGravity() const { return gravity; }
+    void  setGravity(float g) { gravity = g; }
+    float getGravity()  const { return gravity; }
 
-private:
-    World* world;
-    float gravity;
-
-    // プレイヤーの衝突ボックスサイズ
     static constexpr float PLAYER_WIDTH = 0.6f;
     static constexpr float PLAYER_HEIGHT = 1.8f;
     static constexpr float PLAYER_EYE_HEIGHT = 1.62f;
 
-    // ブロックとの衝突チェック
-    bool isBlockSolid(int x, int y, int z);
+private:
+    World* world;
+    float  gravity;
 
-    // 軸ごとの衝突解決
-    bool resolveCollisionAxis(const AABB& box, glm::vec3& position,
-        glm::vec3& velocity, int axis);
+    static constexpr float MARGIN = 0.0005f; // 押し出しマージン
+    static constexpr float STEP_SIZE = 0.25f;   // サブステップ最大移動量/step
+    static constexpr int   MAX_SUBSTEP = 16;
+
+    bool isBlockSolid(int x, int y, int z) const {
+        return world->getBlock(x, y, z).isSolid();
+    }
+
+    // プレイヤー足元座標→AABB
+    static AABB makeAABB(const glm::vec3& pos) {
+        return AABB(
+            pos - glm::vec3(PLAYER_WIDTH * 0.5f, 0.0f, PLAYER_WIDTH * 0.5f),
+            pos + glm::vec3(PLAYER_WIDTH * 0.5f, PLAYER_HEIGHT, PLAYER_WIDTH * 0.5f)
+        );
+    }
+
+    // 1軸の掃引衝突解決
+    // box    : 移動前AABB
+    // delta  : 移動量（単一軸）
+    // axis   : 0=X, 1=Y, 2=Z
+    // 戻り値 : 実際に移動できる量
+    float sweepAxis(const AABB& box, float delta, int axis) const;
 };
 
-// Physics実装
-inline Physics::Physics(World* world)
-    : world(world), gravity(32.0f) {
+//  sweepAxis: 掃引ボリュームで正確に衝突距離を求める
+inline float Physics::sweepAxis(const AABB& box, float delta, int axis) const {
+    if (std::abs(delta) < 1e-7f) return 0.0f;
+
+    const bool positive = (delta > 0.0f);
+
+    // 移動前と移動後のAABBを合わせた「掃引AABB」で走査範囲を決める
+    // これにより移動途中のブロックも確実に捕捉できる
+    float sweepMin[3], sweepMax[3];
+    for (int i = 0; i < 3; i++) {
+        sweepMin[i] = box.min[i];
+        sweepMax[i] = box.max[i];
+    }
+    if (positive) sweepMax[axis] += delta;
+    else          sweepMin[axis] += delta;
+
+    int bMinX = static_cast<int>(std::floor(sweepMin[0]));
+    int bMinY = static_cast<int>(std::floor(sweepMin[1]));
+    int bMinZ = static_cast<int>(std::floor(sweepMin[2]));
+    int bMaxX = static_cast<int>(std::floor(sweepMax[0] - 1e-6f));
+    int bMaxY = static_cast<int>(std::floor(sweepMax[1] - 1e-6f));
+    int bMaxZ = static_cast<int>(std::floor(sweepMax[2] - 1e-6f));
+
+    float allowedDelta = delta; // 衝突がなければそのまま移動
+
+    for (int bx = bMinX; bx <= bMaxX; bx++) {
+        for (int by = bMinY; by <= bMaxY; by++) {
+            for (int bz = bMinZ; bz <= bMaxZ; bz++) {
+                if (!isBlockSolid(bx, by, bz)) continue;
+
+                AABB block(glm::vec3(bx, by, bz),
+                    glm::vec3(bx + 1, by + 1, bz + 1));
+
+                // 衝突軸以外でオーバーラップしているか確認
+                // （掃引AABB全体を走査しているため、横のブロックを誤検出しないようにする）
+                bool overlap = true;
+                for (int i = 0; i < 3; i++) {
+                    if (i == axis) continue;
+                    if (box.max[i] <= block.min[i] + 1e-6f ||
+                        box.min[i] >= block.max[i] - 1e-6f) {
+                        overlap = false;
+                        break;
+                    }
+                }
+                if (!overlap) continue;
+
+                // 移動軸の侵入距離を計算
+                if (positive) {
+                    // box の先頭面（max[axis]）が block.min[axis] に当たる
+                    float gap = block.min[axis] - box.max[axis];
+                    // gap が delta より小さければ衝突する
+                    if (gap < allowedDelta) {
+                        allowedDelta = std::max(0.0f, gap - MARGIN);
+                    }
+                }
+                else {
+                    // box の末尾面（min[axis]）が block.max[axis] に当たる
+                    float gap = block.max[axis] - box.min[axis];
+                    // gap が delta（負値）より大きければ衝突する
+                    if (gap > allowedDelta) {
+                        allowedDelta = std::min(0.0f, gap + MARGIN);
+                    }
+                }
+            }
+        }
+    }
+
+    return allowedDelta;
 }
 
-inline void Physics::updatePlayer(glm::vec3& position, glm::vec3& velocity,
+//  updatePlayer
+inline bool Physics::updatePlayer(glm::vec3& position, glm::vec3& velocity,
     bool onGround, float deltaTime) {
-    // 重力を適用
+    // 重力
     if (!onGround) {
         velocity.y -= gravity * deltaTime;
+        if (velocity.y < -60.0f) velocity.y = -60.0f;
     }
 
-    // 速度制限
-    const float maxFallSpeed = 78.4f;
-    if (velocity.y < -maxFallSpeed) {
-        velocity.y = -maxFallSpeed;
+    glm::vec3 delta = velocity * deltaTime;
+
+    // サブステップ数を決定（最大移動量が STEP_SIZE を超えないように）
+    float maxAbs = std::max({ std::abs(delta.x),
+                              std::abs(delta.y),
+                              std::abs(delta.z) });
+    int substeps = (maxAbs < 1e-7f) ? 1
+        : std::min(MAX_SUBSTEP,
+            static_cast<int>(std::ceil(maxAbs / STEP_SIZE)));
+    glm::vec3 subDelta = delta / static_cast<float>(substeps);
+
+    bool newOnGround = false;
+
+    for (int s = 0; s < substeps; s++) {
+        AABB box = makeAABB(position);
+
+        // ---- Y軸（優先：重力・着地の確定） ----
+        float ry = sweepAxis(box, subDelta.y, 1);
+        if (std::abs(ry) < std::abs(subDelta.y) - 1e-6f) {
+            // 何かに当たった
+            if (subDelta.y < 0.0f) newOnGround = true; // 下方向→着地
+            velocity.y = 0.0f;
+            subDelta.y = ry; // 今後のサブステップ用に更新
+        }
+        position.y += ry;
+
+        // ---- X軸 ----
+        box = makeAABB(position); // Y移動後のAABBで再評価
+        float rx = sweepAxis(box, subDelta.x, 0);
+        if (std::abs(rx) < std::abs(subDelta.x) - 1e-6f) {
+            velocity.x = 0.0f;
+            subDelta.x = rx;
+        }
+        position.x += rx;
+
+        // ---- Z軸 ----
+        box = makeAABB(position); // X移動後のAABBで再評価
+        float rz = sweepAxis(box, subDelta.z, 2);
+        if (std::abs(rz) < std::abs(subDelta.z) - 1e-6f) {
+            velocity.z = 0.0f;
+            subDelta.z = rz;
+        }
+        position.z += rz;
     }
 
-    // 移動量を計算
-    glm::vec3 deltaPos = velocity * deltaTime;
-
-    // プレイヤーのAABBを作成（現在位置基準）
-    AABB playerBox;
-    playerBox.min = position - glm::vec3(PLAYER_WIDTH / 2, 0, PLAYER_WIDTH / 2);
-    playerBox.max = position + glm::vec3(PLAYER_WIDTH / 2, PLAYER_HEIGHT, PLAYER_WIDTH / 2);
-
-    // 衝突判定（deltaPosが補正される）
-    checkCollision(playerBox, position, deltaPos);
-
-    // 補正された移動量を位置に適用
-    position += deltaPos;
+    return newOnGround;
 }
 
-inline bool Physics::isBlockSolid(int x, int y, int z) {
-    Block block = world->getBlock(x, y, z);
-    return block.isSolid();
-}
-
-inline bool Physics::checkCollision(const AABB& box, glm::vec3& position,
-    glm::vec3& velocity) {
-
-
-    // 各軸を個別に処理（スイープ法）
-    glm::vec3 finalDelta = velocity;
-
-    // Y軸（垂直）を最初に処理
-    {
-        glm::vec3 testDelta(0, velocity.y, 0);
-        AABB testBox = box;
-        testBox.min += testDelta;
-        testBox.max += testDelta;
-
-        int minX = static_cast<int>(std::floor(testBox.min.x));
-        int minY = static_cast<int>(std::floor(testBox.min.y));
-        int minZ = static_cast<int>(std::floor(testBox.min.z));
-        int maxX = static_cast<int>(std::floor(testBox.max.x));
-        int maxY = static_cast<int>(std::floor(testBox.max.y));
-        int maxZ = static_cast<int>(std::floor(testBox.max.z));
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    if (!isBlockSolid(x, y, z)) continue;
-
-                    AABB blockBox(glm::vec3(x, y, z), glm::vec3(x + 1, y + 1, z + 1));
-
-                    if (testBox.intersects(blockBox)) {
-                        if (velocity.y > 0) {
-                            finalDelta.y = blockBox.min.y - box.max.y - 0.001f;
-                        }
-                        else {
-                            finalDelta.y = blockBox.max.y - box.min.y + 0.001f;
-                        }
-                        velocity.y = 0;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    // X軸を処理（Y軸の移動を反映）
-    {
-        glm::vec3 testDelta(velocity.x, finalDelta.y, 0);
-        AABB testBox = box;
-        testBox.min += testDelta;
-        testBox.max += testDelta;
-
-        int minX = static_cast<int>(std::floor(testBox.min.x));
-        int minY = static_cast<int>(std::floor(testBox.min.y));
-        int minZ = static_cast<int>(std::floor(testBox.min.z));
-        int maxX = static_cast<int>(std::floor(testBox.max.x));
-        int maxY = static_cast<int>(std::floor(testBox.max.y));
-        int maxZ = static_cast<int>(std::floor(testBox.max.z));
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    if (!isBlockSolid(x, y, z)) continue;
-
-                    AABB blockBox(glm::vec3(x, y, z), glm::vec3(x + 1, y + 1, z + 1));
-
-                    if (testBox.intersects(blockBox)) {
-                        if (velocity.x > 0) {
-                            finalDelta.x = blockBox.min.x - box.max.x - 0.001f;
-                        }
-                        else {
-                            finalDelta.x = blockBox.max.x - box.min.x + 0.001f;
-                        }
-                        velocity.x = 0;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    // Z軸を処理（XとYの移動を反映）
-    {
-        glm::vec3 testDelta(finalDelta.x, finalDelta.y, velocity.z);
-        AABB testBox = box;
-        testBox.min += testDelta;
-        testBox.max += testDelta;
-
-        int minX = static_cast<int>(std::floor(testBox.min.x));
-        int minY = static_cast<int>(std::floor(testBox.min.y));
-        int minZ = static_cast<int>(std::floor(testBox.min.z));
-        int maxX = static_cast<int>(std::floor(testBox.max.x));
-        int maxY = static_cast<int>(std::floor(testBox.max.y));
-        int maxZ = static_cast<int>(std::floor(testBox.max.z));
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    if (!isBlockSolid(x, y, z)) continue;
-
-                    AABB blockBox(glm::vec3(x, y, z), glm::vec3(x + 1, y + 1, z + 1));
-
-                    if (testBox.intersects(blockBox)) {
-                        if (velocity.z > 0) {
-                            finalDelta.z = blockBox.min.z - box.max.z - 0.001f;
-                        }
-                        else {
-                            finalDelta.z = blockBox.max.z - box.min.z + 0.001f;
-                        }
-                        velocity.z = 0;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    velocity = finalDelta;
-    return (finalDelta.x != 0 || finalDelta.y != 0 || finalDelta.z != 0);
-}
-
-inline RaycastHit Physics::raycast(const glm::vec3& origin, const glm::vec3& direction,
-    float maxDistance) {
+//  raycast
+inline RaycastHit Physics::raycast(const glm::vec3& origin,
+    const glm::vec3& direction,
+    float maxDistance) const {
     RaycastHit result;
-    result.hit = false;
 
-    // DDA（Digital Differential Analyzer）アルゴリズム
-    glm::vec3 rayPos = origin;
-    glm::vec3 rayDir = glm::normalize(direction);
+    glm::vec3  rayDir = glm::normalize(direction);
+    glm::ivec3 blockPos(static_cast<int>(std::floor(origin.x)),
+        static_cast<int>(std::floor(origin.y)),
+        static_cast<int>(std::floor(origin.z)));
 
-    // 現在のブロック座標
-    glm::ivec3 blockPos(
-        static_cast<int>(std::floor(rayPos.x)),
-        static_cast<int>(std::floor(rayPos.y)),
-        static_cast<int>(std::floor(rayPos.z))
-    );
-
-    // レイの進む方向（-1, 0, 1）
-    glm::ivec3 step(
-        rayDir.x > 0 ? 1 : (rayDir.x < 0 ? -1 : 0),
+    glm::ivec3 step(rayDir.x > 0 ? 1 : (rayDir.x < 0 ? -1 : 0),
         rayDir.y > 0 ? 1 : (rayDir.y < 0 ? -1 : 0),
-        rayDir.z > 0 ? 1 : (rayDir.z < 0 ? -1 : 0)
-    );
+        rayDir.z > 0 ? 1 : (rayDir.z < 0 ? -1 : 0));
 
-    // 次のブロック境界までの距離
-    glm::vec3 tDelta(
-        step.x != 0 ? std::abs(1.0f / rayDir.x) : FLT_MAX,
+    glm::vec3 tDelta(step.x != 0 ? std::abs(1.0f / rayDir.x) : FLT_MAX,
         step.y != 0 ? std::abs(1.0f / rayDir.y) : FLT_MAX,
-        step.z != 0 ? std::abs(1.0f / rayDir.z) : FLT_MAX
-    );
+        step.z != 0 ? std::abs(1.0f / rayDir.z) : FLT_MAX);
 
-    // 現在位置から次のブロック境界までの距離
     glm::vec3 tMax;
-    tMax.x = step.x > 0 ? (blockPos.x + 1 - rayPos.x) / rayDir.x :
-        step.x < 0 ? (blockPos.x - rayPos.x) / rayDir.x : FLT_MAX;
-    tMax.y = step.y > 0 ? (blockPos.y + 1 - rayPos.y) / rayDir.y :
-        step.y < 0 ? (blockPos.y - rayPos.y) / rayDir.y : FLT_MAX;
-    tMax.z = step.z > 0 ? (blockPos.z + 1 - rayPos.z) / rayDir.z :
-        step.z < 0 ? (blockPos.z - rayPos.z) / rayDir.z : FLT_MAX;
+    tMax.x = step.x > 0 ? (blockPos.x + 1 - origin.x) / rayDir.x :
+        step.x < 0 ? (blockPos.x - origin.x) / rayDir.x : FLT_MAX;
+    tMax.y = step.y > 0 ? (blockPos.y + 1 - origin.y) / rayDir.y :
+        step.y < 0 ? (blockPos.y - origin.y) / rayDir.y : FLT_MAX;
+    tMax.z = step.z > 0 ? (blockPos.z + 1 - origin.z) / rayDir.z :
+        step.z < 0 ? (blockPos.z - origin.z) / rayDir.z : FLT_MAX;
 
-    float distance = 0.0f;
+    float      distance = 0.0f;
     glm::ivec3 normal(0);
 
-    // レイキャスト
     while (distance < maxDistance) {
-        // 現在のブロックをチェック
-        Block block = world->getBlock(blockPos.x, blockPos.y, blockPos.z);
-        if (block.isSolid()) {
+        if (world->getBlock(blockPos.x, blockPos.y, blockPos.z).isSolid()) {
             result.hit = true;
             result.blockPos = blockPos;
             result.normal = normal;
             result.distance = distance;
-            result.position = rayPos + rayDir * distance;
+            result.position = origin + rayDir * distance;
             return result;
         }
 
-        // 次のブロックへ移動
         if (tMax.x < tMax.y) {
             if (tMax.x < tMax.z) {
-                blockPos.x += step.x;
-                distance = tMax.x;
-                tMax.x += tDelta.x;
-                normal = glm::ivec3(-step.x, 0, 0);
+                blockPos.x += step.x; distance = tMax.x;
+                tMax.x += tDelta.x;   normal = glm::ivec3(-step.x, 0, 0);
             }
             else {
-                blockPos.z += step.z;
-                distance = tMax.z;
-                tMax.z += tDelta.z;
-                normal = glm::ivec3(0, 0, -step.z);
+                blockPos.z += step.z; distance = tMax.z;
+                tMax.z += tDelta.z;   normal = glm::ivec3(0, 0, -step.z);
             }
         }
         else {
             if (tMax.y < tMax.z) {
-                blockPos.y += step.y;
-                distance = tMax.y;
-                tMax.y += tDelta.y;
-                normal = glm::ivec3(0, -step.y, 0);
+                blockPos.y += step.y; distance = tMax.y;
+                tMax.y += tDelta.y;   normal = glm::ivec3(0, -step.y, 0);
             }
             else {
-                blockPos.z += step.z;
-                distance = tMax.z;
-                tMax.z += tDelta.z;
-                normal = glm::ivec3(0, 0, -step.z);
+                blockPos.z += step.z; distance = tMax.z;
+                tMax.z += tDelta.z;   normal = glm::ivec3(0, 0, -step.z);
             }
         }
     }
-
     return result;
 }

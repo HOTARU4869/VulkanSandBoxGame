@@ -85,30 +85,20 @@ inline Player::Player(World* world, const glm::vec3& startPosition)
 }
 
 inline void Player::update(float deltaTime) {
-    // クールダウンを減らす
     if (blockInteractionCooldown > 0) {
         blockInteractionCooldown -= deltaTime;
     }
 
     if (flying) {
-        // フライモード：重力なし
         velocity = glm::vec3(0.0f);
     }
     else {
-        // 通常モード：重力あり
-        checkOnGround();
-
-        // ★ 追加: 速度を位置に適用
-        glm::vec3 deltaPos = velocity * deltaTime;
-        position += deltaPos;
-
-        physics.updatePlayer(position, velocity, onGround, deltaTime);
+        // physics.updatePlayer が位置・速度・onGround をすべて管理
+        onGround = physics.updatePlayer(position, velocity, onGround, deltaTime);
     }
 
     // カメラ位置を更新
-    glm::vec3 eyePosition = position;
-    eyePosition.y += 1.62f; // 目の高さ
-    camera.setPosition(eyePosition);
+    camera.setPosition(position + glm::vec3(0.0f, Physics::PLAYER_EYE_HEIGHT, 0.0f));
 }
 
 inline void Player::checkOnGround() {
