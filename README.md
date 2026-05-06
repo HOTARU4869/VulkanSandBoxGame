@@ -1,4 +1,4 @@
-# 🎮 Minecraft Clone — Vulkan / C++
+# 🎮 VulkanSandBoxGame / C++
 
 > Vulkan を用いてゼロから実装したボクセルゲームエンジンです。  
 > C++ / Vulkan の技術習得を目的として個人開発しました。
