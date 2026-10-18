@@ -86,12 +86,51 @@
     <ClInclude Include="renderer\frustum.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="AppConfig.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="backend\vulkan\ivulkan_context.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\mesh_data.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="renderer\material.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="rhi\rhi_pipeline.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="backend\vulkan\vulkan_pipeline.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="chunk_coord.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="rhi\rhi_vertex.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\shader.vert">
+    <None Include="x64\Debug\shaders\compile.bat">
+      <Filter>ソース ファイル</Filter>
+    </None>
+    <None Include="x64\Debug\shaders\src\frag.frag">
       <Filter>リソース ファイル</Filter>
     </None>
-    <None Include="shaders\shader.frag">
+    <None Include="x64\Debug\shaders\src\frag_leaves.frag">
+      <Filter>リソース ファイル</Filter>
+    </None>
+    <None Include="x64\Debug\shaders\src\frag_water.frag">
+      <Filter>リソース ファイル</Filter>
+    </None>
+    <None Include="x64\Debug\shaders\src\vert.vert">
+      <Filter>リソース ファイル</Filter>
+    </None>
+    <None Include="x64\Debug\shaders\src\vert_water.vert">
       <Filter>リソース ファイル</Filter>
     </None>
   </ItemGroup>

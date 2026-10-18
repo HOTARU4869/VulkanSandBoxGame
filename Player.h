@@ -28,6 +28,10 @@ public:
     bool isOnGround() const { return onGround; }
     bool isFlying() const { return flying; }
 
+    // 水中判定 (地面用と目の位置用)
+    bool isEyeInWater() const { return eyeInWater; }
+    bool isInWater()    const { return inWater; }
+
     // モード切り替え
     void toggleFlyMode() { flying = !flying; }
     void setFlyMode(bool enabled) { flying = enabled; }
@@ -46,6 +50,10 @@ private:
     glm::vec3 velocity;
     bool onGround;
     bool flying;
+
+	// 水中判定
+    bool inWater = false;
+    bool eyeInWater = false;  // フォグ用
 
     // プレイヤー設定
     float walkSpeed;
@@ -89,12 +97,14 @@ inline void Player::update(float deltaTime) {
         blockInteractionCooldown -= deltaTime;
     }
 
+    inWater = physics.isInWater(position);
+    eyeInWater = physics.isEyeInWater(position);
+
     if (flying) {
         velocity = glm::vec3(0.0f);
     }
     else {
-        // physics.updatePlayer が位置・速度・onGround をすべて管理
-        onGround = physics.updatePlayer(position, velocity, onGround, deltaTime);
+        onGround = physics.updatePlayer(position, velocity, onGround, inWater, deltaTime);
     }
 
     // カメラ位置を更新
@@ -144,21 +154,47 @@ inline void Player::processKeyboard(GLFWwindow* window, float deltaTime) {
     bool sprint = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS;
 
     if (flying) {
-        // フライモード
         camera.setMovementSpeed(flySpeed);
         camera.processKeyboard(deltaTime, forward, backward, left, right, up, down);
         position = camera.getPosition();
-        position.y -= 1.62f; // 目の高さを引く
+        position.y -= Physics::PLAYER_EYE_HEIGHT;
+    }
+    else if (inWater) {
+        // 水中移動
+        float currentSpeed = walkSpeed * 0.5f;  // 地上より遅い
+
+        glm::vec3 moveDir(0.0f);
+        if (forward)  moveDir += glm::normalize(glm::vec3(camera.getFront().x, 0, camera.getFront().z));
+        if (backward) moveDir -= glm::normalize(glm::vec3(camera.getFront().x, 0, camera.getFront().z));
+        if (left)     moveDir -= camera.getRight();
+        if (right)    moveDir += camera.getRight();
+
+        if (glm::length(moveDir) > 0.0f) {
+            moveDir = glm::normalize(moveDir);
+            velocity.x = moveDir.x * currentSpeed;
+            velocity.z = moveDir.z * currentSpeed;
+        }
+
+        // スペースで浮上、Shiftで潜る
+        if (up)   velocity.y = 3.0f;
+        if (down) velocity.y = -3.0f;
+
+        // 水面付近でスペースを押すと水面を突破して飛び出す
+        // isInWater の判定が足元基準なので、頭が水面に近いかチェック
+        if (up && !physics.isEyeInWater(position)) {
+            // 頭が水面より上 = 水面突破できる距離 → ジャンプ力を与える
+            velocity.y = jumpStrength;
+        }
     }
     else {
-        // 通常モード（地上）
+        // 地上移動
         float currentSpeed = sprint ? sprintSpeed : walkSpeed;
 
         glm::vec3 moveDir(0.0f);
-        if (forward) moveDir += glm::normalize(glm::vec3(camera.getFront().x, 0, camera.getFront().z));
+        if (forward)  moveDir += glm::normalize(glm::vec3(camera.getFront().x, 0, camera.getFront().z));
         if (backward) moveDir -= glm::normalize(glm::vec3(camera.getFront().x, 0, camera.getFront().z));
-        if (left) moveDir -= camera.getRight();
-        if (right) moveDir += camera.getRight();
+        if (left)     moveDir -= camera.getRight();
+        if (right)    moveDir += camera.getRight();
 
         if (glm::length(moveDir) > 0.0f) {
             moveDir = glm::normalize(moveDir);
@@ -170,7 +206,6 @@ inline void Player::processKeyboard(GLFWwindow* window, float deltaTime) {
             velocity.z = 0;
         }
 
-        // ジャンプ
         if (up && onGround) {
             velocity.y = jumpStrength;
             onGround = false;
@@ -180,16 +215,12 @@ inline void Player::processKeyboard(GLFWwindow* window, float deltaTime) {
     // フライモード切り替え（Fキー）
     static bool fKeyPressed = false;
     if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
-        if (!fKeyPressed) {
-            toggleFlyMode();
-            fKeyPressed = true;
-        }
+        if (!fKeyPressed) { toggleFlyMode(); fKeyPressed = true; }
     }
     else {
         fKeyPressed = false;
     }
 
-    // ブロックタイプ選択（数字キー）
     if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) selectedBlockType = BlockType::Grass;
     if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) selectedBlockType = BlockType::Dirt;
     if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) selectedBlockType = BlockType::Stone;

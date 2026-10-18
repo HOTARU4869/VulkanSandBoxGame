@@ -51,14 +51,6 @@ enum class BlockFace {
     Bottom      // -Y
 };
 
-// ブロックの頂点データ（メッシュ生成用）
-struct BlockVertex {
-    float position[3];
-    float texCoord[2];
-    float normal[3];
-    uint32_t blockType;
-};
-
 // 各面の頂点オフセット（立方体）
 static const float BLOCK_VERTICES[6][4][3] = {
     // Front face (+Z)

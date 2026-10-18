@@ -5,20 +5,7 @@
 #include <map>
 #include <cmath>
 #include <random>
-
-// チャンク座標をキーとするための構造体
-struct ChunkCoord {
-    int x, z;
-
-    bool operator<(const ChunkCoord& other) const {
-        if (x != other.x) return x < other.x;
-        return z < other.z;
-    }
-
-    bool operator==(const ChunkCoord& other) const {
-        return x == other.x && z == other.z;
-    }
-};
+#include "chunk_coord.h"
 
 class World {
 public:
@@ -78,8 +65,25 @@ inline void World::setBlock(int x, int y, int z, BlockType type) {
     Chunk::worldToChunkCoords(x, y, z, chunkX, chunkZ, localX, localY, localZ);
 
     Chunk* chunk = getOrCreateChunk(chunkX, chunkZ);
-    if (chunk) {
-        chunk->setBlock(localX, localY, localZ, type);
+    if (!chunk) return;
+    chunk->setBlock(localX, localY, localZ, type);
+
+    // チャンク境界なら隣チャンクも dirty にする
+    if (localX == 0) {
+        Chunk* neighbor = getChunk(chunkX - 1, chunkZ);
+        if (neighbor) neighbor->setDirty(true);
+    }
+    if (localX == CHUNK_SIZE_X - 1) {
+        Chunk* neighbor = getChunk(chunkX + 1, chunkZ);
+        if (neighbor) neighbor->setDirty(true);
+    }
+    if (localZ == 0) {
+        Chunk* neighbor = getChunk(chunkX, chunkZ - 1);
+        if (neighbor) neighbor->setDirty(true);
+    }
+    if (localZ == CHUNK_SIZE_Z - 1) {
+        Chunk* neighbor = getChunk(chunkX, chunkZ + 1);
+        if (neighbor) neighbor->setDirty(true);
     }
 }
 
@@ -178,6 +182,8 @@ inline float World::noise2D(float x, float z) {
     return interpolate(i1, i2, fracZ);
 }
 
+constexpr int SEA_LEVEL = 24; // 海面の高さ
+
 inline void World::generateTerrain(Chunk* chunk) {
     int baseX = chunk->getChunkX() * CHUNK_SIZE_X;
     int baseZ = chunk->getChunkZ() * CHUNK_SIZE_Z;
@@ -217,8 +223,15 @@ inline void World::generateTerrain(Chunk* chunk) {
                 chunk->setBlock(x, y, z, type);
             }
 
+            // 地形が海面以下なら水で埋める
+            if (terrainHeight < SEA_LEVEL) {
+                for (int y = terrainHeight + 1; y <= SEA_LEVEL; y++) {
+                    chunk->setBlock(x, y, z, BlockType::Water);
+                }
+            }
+
             // 木を生成（ランダム）
-            if (terrainHeight > 64 && rng() % 100 < 2) {
+            if (terrainHeight > SEA_LEVEL + 5 && rng() % 100 < 2) {
                 int treeHeight = 4 + (rng() % 3);
                 for (int y = 1; y <= treeHeight; y++) {
                     chunk->setBlock(x, terrainHeight + y, z, BlockType::Wood);

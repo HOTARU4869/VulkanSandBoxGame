@@ -6,33 +6,40 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <chrono>
+#include <thread> 
 #include "renderer/render_pipeline.h"
+#include "Player.h"
+#include "Utils.h"
+#include <set>
+#include "chunk_coord.h"
 
 // マウスコールバック（グローバル関数として定義）
-void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
-    auto app = reinterpret_cast<VulkanApp*>(glfwGetWindowUserPointer(window));
+static bool   s_firstMouse = true;
+static double s_lastMouseX = 0.0;
+static double s_lastMouseY = 0.0;
+static Player* s_player = nullptr;  // main() で設定する
 
-    if (app->firstMouse) {
-        app->lastMouseX = xpos;
-        app->lastMouseY = ypos;
-        app->firstMouse = false;
+void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
+    if (s_firstMouse) {
+        s_lastMouseX = xpos;
+        s_lastMouseY = ypos;
+        s_firstMouse = false;
     }
 
-    float xoffset = static_cast<float>(xpos - app->lastMouseX);
-    float yoffset = static_cast<float>(app->lastMouseY - ypos);
+    float xoffset = static_cast<float>(xpos - s_lastMouseX);
+    float yoffset = static_cast<float>(s_lastMouseY - ypos);
 
-    app->lastMouseX = xpos;
-    app->lastMouseY = ypos;
+    s_lastMouseX = xpos;
+    s_lastMouseY = ypos;
 
-    if (app->getPlayer()) {
-        app->getPlayer()->processMouseMovement(xoffset, yoffset);
+    if (s_player) {
+        s_player->processMouseMovement(xoffset, yoffset);
     }
 }
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-    auto app = reinterpret_cast<VulkanApp*>(glfwGetWindowUserPointer(window));
-    if (app->getPlayer()) {
-        app->getPlayer()->processMouseButton(button, action);
+    if (s_player) {
+        s_player->processMouseButton(button, action);
     }
 }
 
@@ -58,14 +65,21 @@ int main() {
     }
 
     Player player(&world, glm::vec3(spawnX, spawnY, spawnZ));
+    s_player = &player;
     player.setFlyMode(true);  // ★ 追加：最初はフライモードで開始
 
     // VulkanAppを作成
     VulkanApp app;
-    app.setWorld(&world);
-    app.setPlayer(&player);
+
+
+    // 前フレームのチャンク座標を保存するセット
+    std::set<ChunkCoord> prevChunkCoords;
 
     try {
+        AppConfig config;
+        config.appName = "Minecraft Vulkan";
+
+        app.config = config;
         app.initWindow();
 
         // マウスコールバックを設定
@@ -78,10 +92,11 @@ int main() {
 
         // RHI と RenderPipeline だけ知っていればいい
         auto device = std::make_unique<VulkanDevice>(&app);
-        RenderPipeline pipeline(device.get(), &world, &player, "textures/blocks");
+        auto pipeline = std::make_unique<RenderPipeline>(
+            device.get(), resolvePath("textures/blocks"));
 
         // アトラスをGPUテクスチャとして登録
-        const TextureAtlas& atlas = pipeline.getAtlas();
+        const TextureAtlas& atlas = pipeline->getAtlas();
         RHITextureDesc texDesc;
         texDesc.width = atlas.getWidth();
         texDesc.height = atlas.getHeight();
@@ -89,20 +104,18 @@ int main() {
         app.setAtlasTexture(atlasTex);
 
         // ゲームループ
+        constexpr double TARGET_FRAME_MS = 1000.0 / 60.0;
         auto lastFrameTime = std::chrono::high_resolution_clock::now();
         while (!glfwWindowShouldClose(window)) {
-            // デルタタイムの計算
-            auto currentTime = std::chrono::high_resolution_clock::now();
-            float deltaTime = std::chrono::duration<float>(currentTime - lastFrameTime).count();
-            lastFrameTime = currentTime;
+            auto frameStart = std::chrono::high_resolution_clock::now();
 
-            // 入力処理
+            float deltaTime = std::chrono::duration<float>(frameStart - lastFrameTime).count();
+            lastFrameTime = frameStart;
+
             if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
                 glfwSetWindowShouldClose(window, true);
             }
             player.processKeyboard(window, deltaTime);
-
-            // プレイヤー更新
             player.update(deltaTime);
 
             // チャンク更新
@@ -111,8 +124,34 @@ int main() {
                 static_cast<int>(std::floor(pos.x)) / CHUNK_SIZE_X,
                 static_cast<int>(std::floor(pos.z)) / CHUNK_SIZE_Z, 8);
 
-            // ★ ゲームループはこの2行だけ
-            pipeline.updateChunks();
+            const auto& currentChunks = world.getChunks();
+
+            // 前フレームに存在して今フレームに存在しないチャンクを削除
+            for (const auto& coord : prevChunkCoords) {
+                if (currentChunks.find(coord) == currentChunks.end()) {
+                    pipeline->removeChunk(coord);
+                }
+            }
+
+            // dirty なチャンクのメッシュを更新
+            for (auto& [coord, chunk] : currentChunks) {
+                if (!chunk->isDirty()) continue;
+
+                MeshData md;
+                chunk->generateMesh(
+                    md.opaqueVertices, md.opaqueIndices,
+                    md.leavesVertices, md.leavesIndices,
+                    md.waterSurfaceVertices, md.waterSurfaceIndices,
+                    md.waterSideVertices, md.waterSideIndices);
+
+                pipeline->submitChunk(coord, md);
+            }
+
+            // 今フレームの状態を保存
+            prevChunkCoords.clear();
+            for (const auto& [coord, chunk] : currentChunks) {
+                prevChunkCoords.insert(coord);
+            }
 
 			const Camera& cam = player.getCamera();
 			float aspect = static_cast<float>(app.swapChainExtent.width) 
@@ -120,7 +159,8 @@ int main() {
 			glm::mat4 view = cam.getViewMatrix();
 			glm::mat4 proj = cam.getProjectionMatrix(aspect);
 			proj[1][1] *= -1;  // VulkanのNDCに合わせてY軸を反転
-            pipeline.render(view,proj);
+
+            pipeline->render(view, proj, cam.getPosition(), player.isEyeInWater() ? 1 : 0);
 
             // FPS表示
             static int frameCount = 0;
@@ -132,9 +172,11 @@ int main() {
                 char title[256];
                 glm::vec3 pos = player.getPosition();
                 snprintf(title, sizeof(title),
-                    "Minecraft Vulkan | FPS: %d | Pos: (%.1f, %.1f, %.1f) | Flying: %s | Chunks: %zu",
+                    "Minecraft Vulkan | FPS: %d | Pos: (%.1f, %.1f, %.1f) | Flying: %s | InWater: %s | EyeInWater: %s | Chunks: %zu",
                     frameCount, pos.x, pos.y, pos.z,
                     player.isFlying() ? "ON" : "OFF",
+                    player.isInWater() ? "ON" : "OFF",
+                    player.isEyeInWater() ? "ON" : "OFF",
                     world.getChunks().size());
                 glfwSetWindowTitle(window, title);
                 frameCount = 0;
@@ -142,10 +184,19 @@ int main() {
             }
 
             glfwPollEvents();
+
+            auto frameEnd = std::chrono::high_resolution_clock::now();
+            double elapsed = std::chrono::duration<double, std::milli>(frameEnd - frameStart).count();
+            if (elapsed < TARGET_FRAME_MS) {
+                std::this_thread::sleep_for(
+                    std::chrono::duration<double, std::milli>(TARGET_FRAME_MS - elapsed));
+            }
         }
 
         vkDeviceWaitIdle(app.device);
-
+        pipeline.reset();
+        atlasTex.reset();
+        device.reset();
         app.cleanup();
 
     }

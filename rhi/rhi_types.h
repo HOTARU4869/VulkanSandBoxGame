@@ -5,9 +5,6 @@
 
 enum class RHIBackend { Vulkan, D3D12, Metal };
 
-// š IRHITexture ‚Ì’è‹`‚Í‚±‚±‚©‚çíœ‚·‚é
-// class IRHITexture { ... };  © íœ
-
 class IRHIBuffer {
 public:
     virtual ~IRHIBuffer() = default;
@@ -30,3 +27,6 @@ struct RHIBufferDesc {
     bool     isUniform = false;
     bool     hostVisible = true;
 };
+
+class IRHIPipeline;
+using RHIPipelineRef = std::shared_ptr<IRHIPipeline>;

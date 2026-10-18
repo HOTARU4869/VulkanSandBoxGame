@@ -35,13 +35,29 @@ public:
 
     // メイン物理更新。position/velocity を直接書き換え、onGround を返す
     bool updatePlayer(glm::vec3& position, glm::vec3& velocity,
-        bool onGround, float deltaTime);
+        bool onGround, bool inWater, float deltaTime);
 
     RaycastHit raycast(const glm::vec3& origin, const glm::vec3& direction,
         float maxDistance) const;
 
     void  setGravity(float g) { gravity = g; }
     float getGravity()  const { return gravity; }
+
+    bool isInWater(const glm::vec3& position) const {
+        glm::vec3 eyePos = position + glm::vec3(0.0f, PLAYER_EYE_HEIGHT * 0.5f, 0.0f);
+        int bx = static_cast<int>(std::floor(eyePos.x));
+        int by = static_cast<int>(std::floor(eyePos.y));
+        int bz = static_cast<int>(std::floor(eyePos.z));
+        return world->getBlock(bx, by, bz).getType() == BlockType::Water;
+    }
+
+    bool isEyeInWater(const glm::vec3& position) const {
+        glm::vec3 eyePos = position + glm::vec3(0.0f, PLAYER_EYE_HEIGHT, 0.0f);
+        int bx = static_cast<int>(std::floor(eyePos.x));
+        int by = static_cast<int>(std::floor(eyePos.y));
+        int bz = static_cast<int>(std::floor(eyePos.z));
+        return world->getBlock(bx, by, bz).getType() == BlockType::Water;
+    }
 
     static constexpr float PLAYER_WIDTH = 0.6f;
     static constexpr float PLAYER_HEIGHT = 1.8f;
@@ -52,8 +68,8 @@ private:
     float  gravity;
 
     static constexpr float MARGIN = 0.0005f; // 押し出しマージン
-    static constexpr float STEP_SIZE = 0.25f;   // サブステップ最大移動量/step
-    static constexpr int   MAX_SUBSTEP = 16;
+    static constexpr int   MAX_SUBSTEP = 64;
+    static constexpr float STEP_SIZE = 0.1f;
 
     bool isBlockSolid(int x, int y, int z) const {
         return world->getBlock(x, y, z).isSolid();
@@ -147,16 +163,26 @@ inline float Physics::sweepAxis(const AABB& box, float delta, int axis) const {
 
 //  updatePlayer
 inline bool Physics::updatePlayer(glm::vec3& position, glm::vec3& velocity,
-    bool onGround, float deltaTime) {
-    // 重力
-    if (!onGround) {
-        velocity.y -= gravity * deltaTime;
-        if (velocity.y < -60.0f) velocity.y = -60.0f;
+    bool onGround, bool inWater, float deltaTime) {
+
+    if (inWater) {
+        // 水中物理: 重力を非常に弱くし、常に減衰をかける
+        velocity.y -= gravity * 0.05f * deltaTime;  // 重力 1/20
+        velocity.y *= std::pow(0.8f, deltaTime * 10.0f);  // 強めの減衰
+        velocity.x *= std::pow(0.8f, deltaTime * 10.0f);
+        velocity.z *= std::pow(0.8f, deltaTime * 10.0f);
+        if (velocity.y < -2.0f) velocity.y = -2.0f;
+    }
+    else {
+        // 地上物理: 通常の重力
+        if (!onGround) {
+            velocity.y -= gravity * deltaTime;
+            if (velocity.y < -60.0f) velocity.y = -60.0f;
+        }
     }
 
     glm::vec3 delta = velocity * deltaTime;
 
-    // サブステップ数を決定（最大移動量が STEP_SIZE を超えないように）
     float maxAbs = std::max({ std::abs(delta.x),
                               std::abs(delta.y),
                               std::abs(delta.z) });
@@ -170,18 +196,15 @@ inline bool Physics::updatePlayer(glm::vec3& position, glm::vec3& velocity,
     for (int s = 0; s < substeps; s++) {
         AABB box = makeAABB(position);
 
-        // ---- Y軸（優先：重力・着地の確定） ----
         float ry = sweepAxis(box, subDelta.y, 1);
         if (std::abs(ry) < std::abs(subDelta.y) - 1e-6f) {
-            // 何かに当たった
-            if (subDelta.y < 0.0f) newOnGround = true; // 下方向→着地
+            if (subDelta.y < 0.0f) newOnGround = true;
             velocity.y = 0.0f;
-            subDelta.y = ry; // 今後のサブステップ用に更新
+            subDelta.y = ry;
         }
         position.y += ry;
 
-        // ---- X軸 ----
-        box = makeAABB(position); // Y移動後のAABBで再評価
+        box = makeAABB(position);
         float rx = sweepAxis(box, subDelta.x, 0);
         if (std::abs(rx) < std::abs(subDelta.x) - 1e-6f) {
             velocity.x = 0.0f;
@@ -189,8 +212,7 @@ inline bool Physics::updatePlayer(glm::vec3& position, glm::vec3& velocity,
         }
         position.x += rx;
 
-        // ---- Z軸 ----
-        box = makeAABB(position); // X移動後のAABBで再評価
+        box = makeAABB(position);
         float rz = sweepAxis(box, subDelta.z, 2);
         if (std::abs(rz) < std::abs(subDelta.z) - 1e-6f) {
             velocity.z = 0.0f;

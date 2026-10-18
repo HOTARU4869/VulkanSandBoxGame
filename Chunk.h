@@ -2,15 +2,12 @@
 
 #pragma once
 #include "Block.h"
+#include "renderer/mesh_data.h"
 #include <vector>
 #include <array>
 #include <memory>
-#include "renderer/texture_atlas.h"
+#include "chunk_coord.h"
 
-// チャンクのサイズ定義
-constexpr int CHUNK_SIZE_X = 16;
-constexpr int CHUNK_SIZE_Y = 256;
-constexpr int CHUNK_SIZE_Z = 16;
 
 class Chunk {
 public:
@@ -26,11 +23,14 @@ public:
     int getChunkZ() const { return chunkZ; }
 
     // メッシュ生成
-    void generateMesh(std::vector<BlockVertex>& opaqueVerts,
+    void generateMesh(std::vector<MeshVertex>& opaqueVerts,
         std::vector<uint32_t>& opaqueIndices,
-        std::vector<BlockVertex>& transVerts,
-        std::vector<uint32_t>& transIndices,
-        const TextureAtlas& atlas);
+        std::vector<MeshVertex>& leavesVerts,
+        std::vector<uint32_t>& leavesIndices,
+        std::vector<MeshVertex>& waterSurfaceVerts,
+        std::vector<uint32_t>& waterSurfaceIndices,
+        std::vector<MeshVertex>& waterSideVerts,
+        std::vector<uint32_t>& waterSideIndices);
 
     // チャンクが変更されたかどうか
     bool isDirty() const { return dirty; }
@@ -59,9 +59,8 @@ private:
 
     // 面をメッシュに追加
     void addFaceToMesh(int x, int y, int z, BlockFace face,
-        std::vector<BlockVertex>& vertices,
-        std::vector<uint32_t>& indices,
-        const TextureAtlas& atlas);
+        std::vector<MeshVertex>& vertices,
+        std::vector<uint32_t>& indices);
 };
 
 // Chunk実装
@@ -109,10 +108,8 @@ inline void Chunk::setNeighbor(int direction, Chunk* neighbor) {
 inline void Chunk::worldToChunkCoords(int worldX, int worldY, int worldZ,
     int& chunkX, int& chunkZ,
     int& localX, int& localY, int& localZ) {
-    chunkX = worldX / CHUNK_SIZE_X;
-    chunkZ = worldZ / CHUNK_SIZE_Z;
-    if (worldX < 0) chunkX--;
-    if (worldZ < 0) chunkZ--;
+    chunkX = (int)std::floor((float)worldX / CHUNK_SIZE_X);
+    chunkZ = (int)std::floor((float)worldZ / CHUNK_SIZE_Z);
 
     localX = worldX - chunkX * CHUNK_SIZE_X;
     localY = worldY;
@@ -155,7 +152,7 @@ inline bool Chunk::shouldDrawFace(int x, int y, int z, BlockFace face) const {
         return true;
     }
 
-    // ★ チャンク境界 — 隣チャンクのブロックを確認する
+    // チャンク境界 — 隣チャンクのブロックを確認する
     int direction = -1;
     int localX = nx, localZ = nz;
 
@@ -180,36 +177,46 @@ inline bool Chunk::shouldDrawFace(int x, int y, int z, BlockFace face) const {
 }
 
 inline void Chunk::addFaceToMesh(int x, int y, int z, BlockFace face,
-    std::vector<BlockVertex>& vertices,
-    std::vector<uint32_t>& indices,
-    const TextureAtlas& atlas) {
+    std::vector<MeshVertex>& vertices,
+    std::vector<uint32_t>& indices) {
+
     int faceIndex = static_cast<int>(face);
     uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
 
     Block block = getBlock(x, y, z);
 
-    // ★ アトラスからUV座標を取得
-    UVRect uv = atlas.getUV(block.getType(), face);
-
-    // UV座標の4隅（左下・右下・右上・左上）
-    float uvCoords[4][2] = {
-        { uv.u0, uv.v1 },
-        { uv.u1, uv.v1 },
-        { uv.u1, uv.v0 },
-        { uv.u0, uv.v0 },
-    };
+    // テクスチャインデックスの決定（UV計算はしない）
+    // TextureAtlas::getTextureIndex と同じロジックをここに移植
+    uint32_t texIdx = 0;
+    switch (block.getType()) {
+    case BlockType::Grass:
+        texIdx = (face == BlockFace::Top) ? 0
+            : (face == BlockFace::Bottom) ? 2
+            : 1;
+        break;
+    case BlockType::Dirt:   texIdx = 2; break;
+    case BlockType::Stone:  texIdx = 3; break;
+    case BlockType::Wood:
+        texIdx = (face == BlockFace::Top || face == BlockFace::Bottom) ? 4 : 5;
+        break;
+    case BlockType::Leaves: texIdx = 6; break;
+    case BlockType::Sand:   texIdx = 7; break;
+    case BlockType::Water:  texIdx = 8; break;
+    default:                texIdx = 3; break;
+    }
 
     for (int i = 0; i < 4; i++) {
-        BlockVertex vertex;
+        MeshVertex vertex;
         vertex.position[0] = x + BLOCK_VERTICES[faceIndex][i][0];
         vertex.position[1] = y + BLOCK_VERTICES[faceIndex][i][1];
         vertex.position[2] = z + BLOCK_VERTICES[faceIndex][i][2];
-        vertex.texCoord[0] = uvCoords[i][0];
-        vertex.texCoord[1] = uvCoords[i][1];
+        vertex.texCoord[0] = 0.0f;   // RenderPipeline が後で書く
+        vertex.texCoord[1] = 0.0f;
         vertex.normal[0] = BLOCK_NORMALS[faceIndex][0];
         vertex.normal[1] = BLOCK_NORMALS[faceIndex][1];
         vertex.normal[2] = BLOCK_NORMALS[faceIndex][2];
         vertex.blockType = static_cast<uint32_t>(block.getType());
+        vertex.textureIndex = texIdx;
         vertices.push_back(vertex);
     }
 
@@ -221,13 +228,20 @@ inline void Chunk::addFaceToMesh(int x, int y, int z, BlockFace face,
     indices.push_back(baseIndex + 3);
 }
 
-inline void Chunk::generateMesh(std::vector<BlockVertex>& opaqueVerts,
+inline void Chunk::generateMesh(
+    std::vector<MeshVertex>& opaqueVerts,
     std::vector<uint32_t>& opaqueIndices,
-    std::vector<BlockVertex>& transVerts,
-    std::vector<uint32_t>& transIndices,
-    const TextureAtlas& atlas) {
-    opaqueVerts.clear();   opaqueIndices.clear();
-    transVerts.clear();    transIndices.clear();
+    std::vector<MeshVertex>& leavesVerts,
+    std::vector<uint32_t>& leavesIndices,
+    std::vector<MeshVertex>& waterSurfaceVerts,
+    std::vector<uint32_t>& waterSurfaceIndices,
+    std::vector<MeshVertex>& waterSideVerts,
+    std::vector<uint32_t>& waterSideIndices) {
+
+    opaqueVerts.clear();        opaqueIndices.clear();
+    leavesVerts.clear();        leavesIndices.clear();
+    waterSurfaceVerts.clear();  waterSurfaceIndices.clear();
+    waterSideVerts.clear();     waterSideIndices.clear();
 
     for (int x = 0; x < CHUNK_SIZE_X; x++) {
         for (int y = 0; y < CHUNK_SIZE_Y; y++) {
@@ -235,17 +249,31 @@ inline void Chunk::generateMesh(std::vector<BlockVertex>& opaqueVerts,
                 Block block = getBlock(x, y, z);
                 if (block.getType() == BlockType::Air) continue;
 
-                // ★ 透過ブロックかどうかで出力先を分ける
-                bool isTransparent = (block.getType() == BlockType::Leaves ||
-                    block.getType() == BlockType::Water);
-
-                auto& verts = isTransparent ? transVerts : opaqueVerts;
-                auto& indices = isTransparent ? transIndices : opaqueIndices;
-
                 for (int f = 0; f < 6; f++) {
                     BlockFace face = static_cast<BlockFace>(f);
-                    if (shouldDrawFace(x, y, z, face)) {
-                        addFaceToMesh(x, y, z, face, verts, indices, atlas);
+                    if (!shouldDrawFace(x, y, z, face)) continue;
+
+                    switch (block.getType()) {
+                    case BlockType::Leaves:
+                        addFaceToMesh(x, y, z, face, leavesVerts, leavesIndices);
+                        break;
+
+                    case BlockType::Water:
+                        // 上面かつ直上が Air のときだけ水面扱い
+                        if (face == BlockFace::Top) {
+                            Block above = getBlock(x, y + 1, z);
+                            if (above.getType() == BlockType::Air) {
+                                addFaceToMesh(x, y, z, face,
+                                    waterSurfaceVerts, waterSurfaceIndices);
+                                break;
+                            }
+                        }
+                        addFaceToMesh(x, y, z, face, waterSideVerts, waterSideIndices);
+                        break;
+
+                    default:
+                        addFaceToMesh(x, y, z, face, opaqueVerts, opaqueIndices);
+                        break;
                     }
                 }
             }

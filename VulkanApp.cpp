@@ -7,6 +7,8 @@
 #include <set>
 #include <algorithm>
 #include <fstream>
+#include <limits>
+#include "Utils.h"
 #include "rhi/rhi_texture.h"
 #include "backend/vulkan/vulkan_texture.h"
 
@@ -28,20 +30,12 @@ VulkanApp::VulkanApp()
 VulkanApp::~VulkanApp() {
 }
 
-// メインの実行関数
-void VulkanApp::run() {
-    initWindow();
-    initVulkan();
-    mainLoop();
-    cleanup();
-}
-
 // ウィンドウの初期化
 void VulkanApp::initWindow() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-    window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan_Minecraft", nullptr, nullptr);
+    window = glfwCreateWindow(config.windowWidth, config.windowHeight, config.appName.c_str(), nullptr, nullptr);
     glfwSetWindowUserPointer(window, this);
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 }
@@ -63,7 +57,6 @@ void VulkanApp::initVulkan() {
     createImageViews();
     createRenderPass();
     createDescriptorSetLayout();
-    createGraphicsPipeline();
     createCommandPool();
     createDepthResources();
     createFramebuffers();
@@ -75,62 +68,49 @@ void VulkanApp::initVulkan() {
 }
 
 /// <summary>
-/// メインループ
-/// </summary>
-void VulkanApp::mainLoop() {
-    while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
-        drawFrame();
-    }
-
-    vkDeviceWaitIdle(device);
-}
-
-/// <summary>
 /// クリーンアップ
 /// </summary>
 void VulkanApp::cleanup() {
-    cleanupSwapChain();
+	// すべてのGPU操作が完了するのを待つ
+    vkDeviceWaitIdle(device);
 
-    // チャンクメッシュのクリーンアップ
-    for (auto& [coord, mesh] : chunkMeshes) {
-        vkDestroyBuffer(device, mesh.indexBuffer, nullptr);
-        vkFreeMemory(device, mesh.indexBufferMemory, nullptr);
-        vkDestroyBuffer(device, mesh.vertexBuffer, nullptr);
-        vkFreeMemory(device, mesh.vertexBufferMemory, nullptr);
-    }
+	// RenderPipelineが保持しているテクスチャを先に破棄する
+    atlasTexture.reset();
 
-    // ユニフォームバッファのクリーンアップ（変更）
-    for (size_t i = 0; i < uniformBuffers.size(); i++) {
-        vkDestroyBuffer(device, uniformBuffers[i], nullptr);
-        vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
-    }
-
-    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-
-    vkDestroyPipeline(device, graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-    vkDestroyRenderPass(device, renderPass, nullptr);
-
-    // 同期オブジェクトの破棄
-    for (size_t i = 0; i < swapChainImages.size(); i++) {
+	// ユニフォームバッファ、デスクリプタセット、スワップチェーン関連のリソースを破棄
+    for (size_t i = 0; i < imageAvailableSemaphores.size(); i++) {
         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
         vkDestroyFence(device, inFlightFences[i], nullptr);
     }
 
+	// コマンドプールを破棄（これによりコマンドバッファも自動的に破棄される）
     vkDestroyCommandPool(device, commandPool, nullptr);
 
-    vkDestroyDevice(device, nullptr);
+	// スワップチェーン関連のリソースを破棄
+    cleanupSwapChain();
 
-    if (enableValidationLayers) {
-        DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+	// デスクリプタセットとレイアウトを破棄
+    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+    for (size_t i = 0; i < uniformBuffers.size(); i++) {
+        vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+        vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
     }
 
+	// その他のリソースを破棄
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    vkDestroyRenderPass(device, renderPass, nullptr);
+    vkDestroyDevice(device, nullptr);
+
+	// デバッグメッセンジャーを破棄
+    if (enableValidationLayers)
+        DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+
+	// サーフェイスとインスタンスを破棄
     vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);
-
     glfwDestroyWindow(window);
     glfwTerminate();
 }
@@ -189,11 +169,7 @@ void VulkanApp::recreateSwapChain() {
     createImageViews();
     createDepthResources();
     createFramebuffers();
-
-    // ユニフォームバッファを再作成（追加）
     createUniformBuffers();
-
-    // デスクリプタプールとセットを再作成（追加）
     createDescriptorPool();
     createDescriptorSets();
 
@@ -634,12 +610,9 @@ VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
         return capabilities.currentExtent;
     }
     else {
-        int width, height;
-        glfwGetFramebufferSize(window, &width, &height);
-
         VkExtent2D actualExtent = {
-            static_cast<uint32_t>(width),
-            static_cast<uint32_t>(height)
+            static_cast<uint32_t>(config.windowWidth),
+            static_cast<uint32_t>(config.windowHeight)
         };
 
         actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
@@ -844,155 +817,6 @@ void VulkanApp::createRenderPass() {
 }
 
 /// <summary>
-/// グラフィックスパイプラインの作成
-/// </summary>
-void VulkanApp::createGraphicsPipeline() {
-    auto vertShaderCode = readFile("shaders/vert.spv");
-    auto fragShaderCode = readFile("shaders/frag.spv");
-
-    VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);
-    VkShaderModule fragShaderModule = createShaderModule(device, fragShaderCode);
-
-    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = vertShaderModule;
-    vertShaderStageInfo.pName = "main";
-
-    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = fragShaderModule;
-    fragShaderStageInfo.pName = "main";
-
-    VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
-
-    auto bindingDescription = Vertex::getBindingDescription();
-    auto attributeDescriptions = Vertex::getAttributeDescriptions();
-
-    // ビューポートとシザーの設定（動的ステートを使う場合）
-    std::vector<VkDynamicState> dynamicStates = {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR
-    };
-
-    VkPipelineDynamicStateCreateInfo dynamicState{};
-    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-    dynamicState.pDynamicStates = dynamicStates.data();
-
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
-
-    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    inputAssembly.primitiveRestartEnable = VK_FALSE;
-
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = (float)swapChainExtent.width;
-    viewport.height = (float)swapChainExtent.height;
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    VkRect2D scissor{};
-    scissor.offset = { 0, 0 };
-    scissor.extent = swapChainExtent;
-
-    VkPipelineViewportStateCreateInfo viewportState{};
-    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    viewportState.viewportCount = 1;
-    viewportState.pViewports = nullptr;  // 動的ステートなのでnullptr
-    viewportState.scissorCount = 1;
-    viewportState.pScissors = nullptr;   // 動的ステートなのでnullptr
-
-    VkPipelineRasterizationStateCreateInfo rasterizer{};
-    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rasterizer.depthClampEnable = VK_FALSE;
-    rasterizer.rasterizerDiscardEnable = VK_FALSE;
-    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rasterizer.depthBiasEnable = VK_FALSE;
-
-    VkPipelineMultisampleStateCreateInfo multisampling{};
-    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_TRUE;
-	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-
-    VkPipelineColorBlendStateCreateInfo colorBlending{};
-    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    colorBlending.logicOpEnable = VK_FALSE;
-    colorBlending.logicOp = VK_LOGIC_OP_COPY;
-    colorBlending.attachmentCount = 1;
-    colorBlending.pAttachments = &colorBlendAttachment;
-    colorBlending.blendConstants[0] = 0.0f;
-    colorBlending.blendConstants[1] = 0.0f;
-    colorBlending.blendConstants[2] = 0.0f;
-    colorBlending.blendConstants[3] = 0.0f;
-
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-
-    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create pipeline layout!");
-    }
-
-    VkPipelineDepthStencilStateCreateInfo depthStencil{};
-    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    depthStencil.depthTestEnable = VK_TRUE;
-    depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-    depthStencil.depthBoundsTestEnable = VK_FALSE;
-    depthStencil.stencilTestEnable = VK_FALSE;
-
-    VkGraphicsPipelineCreateInfo pipelineInfo{};
-    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 2;
-    pipelineInfo.pStages = shaderStages;
-    pipelineInfo.pVertexInputState = &vertexInputInfo;
-    pipelineInfo.pInputAssemblyState = &inputAssembly;
-    pipelineInfo.pViewportState = &viewportState;
-    pipelineInfo.pRasterizationState = &rasterizer;
-    pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pColorBlendState = &colorBlending;
-    pipelineInfo.pDynamicState = &dynamicState;  // 追加
-    pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.renderPass = renderPass;
-    pipelineInfo.subpass = 0;
-    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-
-    pipelineInfo.pDepthStencilState = &depthStencil;
-
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create graphics pipeline!");
-    }
-
-    vkDestroyShaderModule(device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(device, vertShaderModule, nullptr);
-}
-
-/// <summary>
 /// フレームバッファの作成
 /// </summary>
 void VulkanApp::createFramebuffers() {
@@ -1064,10 +888,8 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer,
     uint32_t currentFrame) {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
         throw std::runtime_error("Failed to begin recording command buffer!");
-    }
 
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1076,22 +898,15 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer,
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = swapChainExtent;
 
-    // クリアカラーとデプスを設定
     std::array<VkClearValue, 2> clearValues{};
-    clearValues[0].color = { {0.53f, 0.81f, 0.92f, 1.0f} };  // 空色
+    clearValues[0].color = { { 0.53f, 0.81f, 0.92f, 1.0f } };
     clearValues[1].depthStencil = { 1.0f, 0 };
-
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-
-    // ビューポートとシザーを設定（動的ステートの場合）
     VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
     viewport.width = static_cast<float>(swapChainExtent.width);
     viewport.height = static_cast<float>(swapChainExtent.height);
     viewport.minDepth = 0.0f;
@@ -1099,39 +914,16 @@ void VulkanApp::recordCommandBuffer(VkCommandBuffer commandBuffer,
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
     VkRect2D scissor{};
-    scissor.offset = { 0, 0 };
     scissor.extent = swapChainExtent;
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    // デスクリプタセットをバインド
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        pipelineLayout, 0, 1, &descriptorSets[currentFrame],
-        0, nullptr);
-
-    // 各チャンクを描画
-    if (world) {
-        for (const auto& [coord, chunk] : world->getChunks()) {
-            auto meshIt = chunkMeshes.find(coord);
-            if (meshIt == chunkMeshes.end() || meshIt->second.indexCount == 0) {
-                continue;
-            }
-
-            const ChunkMesh& mesh = meshIt->second;
-
-            VkBuffer vertexBuffers[] = { mesh.vertexBuffer };
-            VkDeviceSize offsets[] = { 0 };
-            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-            vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
-        }
-    }
+        pipelineLayout, 0, 1,
+        &descriptorSets[currentFrame], 0, nullptr);
 
     vkCmdEndRenderPass(commandBuffer);
-
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
         throw std::runtime_error("Failed to record command buffer!");
-    }
 }
 
 /// <summary>
@@ -1159,85 +951,6 @@ void VulkanApp::createSyncObjects() {
 }
 
 /// <summary>
-/// フレームの描画
-/// </summary>
-void VulkanApp::drawFrame() {
-    //updateChunkMeshes();
-
-    uint32_t imageIndex;
-    VkResult result = vkAcquireNextImageKHR(
-        device,
-        swapChain,
-        UINT64_MAX,
-        imageAvailableSemaphores[currentFrame % swapChainImages.size()],
-        VK_NULL_HANDLE,
-        &imageIndex
-    );
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        recreateSwapChain();
-        return;
-    }
-    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        throw std::runtime_error("Failed to acquire swap chain image!");
-    }
-
-    vkWaitForFences(device, 1, &inFlightFences[imageIndex], VK_TRUE, UINT64_MAX);
-    vkResetFences(device, 1, &inFlightFences[imageIndex]);
-
-    // imageIndex でアクセス（これで範囲内になる）
-    updateUniformBuffer(imageIndex);
-
-	// コマンドバッファをリセットして再記録
-    vkResetCommandBuffer(commandBuffers[imageIndex], 0);
-    recordCommandBuffer(commandBuffers[imageIndex], imageIndex, imageIndex);
-
-	// コマンドバッファをキューに提出
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-	// imageAvailableSemaphoreでGPUがイメージを使用可能になるのを待つ
-    VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[imageIndex] };
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = waitSemaphores;
-    submitInfo.pWaitDstStageMask = waitStages;
-
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
-
-    VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[imageIndex] };
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = signalSemaphores;
-
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[imageIndex]) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to submit draw command buffer!");
-    }
-
-    VkPresentInfoKHR presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = signalSemaphores;
-
-    VkSwapchainKHR swapChains[] = { swapChain };
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = swapChains;
-    presentInfo.pImageIndices = &imageIndex;
-
-    result = vkQueuePresentKHR(presentQueue, &presentInfo);
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
-        framebufferResized = false;
-        recreateSwapChain();
-    }
-    else if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to present swap chain image!");
-    }
-
-    currentFrame++;
-}
-
-/// <summary>
 /// デスクリプタセットレイアウトの作成
 /// </summary>
 void VulkanApp::createDescriptorSetLayout() {
@@ -1246,7 +959,7 @@ void VulkanApp::createDescriptorSetLayout() {
     uboBinding.binding = 0;
     uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     uboBinding.descriptorCount = 1;
-    uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
     // binding 1 — テクスチャサンプラー（新規追加）
     VkDescriptorSetLayoutBinding samplerBinding{};
@@ -1264,6 +977,15 @@ void VulkanApp::createDescriptorSetLayout() {
 
     if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create descriptor set layout!");
+    }
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+
+    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create pipeline layout!");
     }
 }
 
@@ -1359,17 +1081,17 @@ void VulkanApp::createDepthResources() {
 /// ユニフォームバッファの更新
 /// </summary>
 /// <param name="currentImage">更新するユニフォームバッファのインデックス（スワップチェーンイメージのインデックスと対応）</param>
-void VulkanApp::updateUniformBuffer(uint32_t currentImage) {
-    if (!player) return;
+void VulkanApp::updateUniformBuffer(uint32_t currentImage,
+    const glm::mat4& view,
+    const glm::mat4& proj,
+    const glm::vec3& viewPos,
+    int eyeInWater) {
 
     UniformBufferObject ubo{};
     ubo.model = glm::mat4(1.0f);
-    ubo.view = player->getCamera().getViewMatrix();
-    ubo.proj = player->getCamera().getProjectionMatrix(
-        swapChainExtent.width / (float)swapChainExtent.height);
-    ubo.proj[1][1] *= -1;  // GLMはOpenGL用なので、Y座標を反転
-    ubo.viewPos = player->getCamera().getPosition();
-
+    ubo.view = view;
+    ubo.proj = proj;
+    ubo.viewPos = glm::uvec4(viewPos, static_cast<float>(eyeInWater));
     memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
 }
 
@@ -1586,11 +1308,17 @@ VkImageView VulkanApp::createImageView(VkImage image, VkFormat format,
 /// フレームの開始。スワップチェーンイメージの取得、ユニフォームバッファの更新、コマンドバッファの記録を行う。
 /// </summary>
 /// <returns>描画対象のスワップチェーンイメージのインデックス。VkResultがVK_ERROR_OUT_OF_DATE_KHRの場合は0を返す。</returns>
-uint32_t VulkanApp::beginFrame() {
+uint32_t VulkanApp::beginFrame(const glm::mat4& view,
+    const glm::mat4& proj,
+    const glm::vec3& viewPos,
+    int eyeInWater) {
+
+    vkWaitForFences(device, 1, &inFlightFences[semaphoreIndex], VK_TRUE, UINT64_MAX);
+
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(
         device, swapChain, UINT64_MAX,
-        imageAvailableSemaphores[currentFrame % swapChainImages.size()],
+        imageAvailableSemaphores[semaphoreIndex],
         VK_NULL_HANDLE, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -1598,10 +1326,8 @@ uint32_t VulkanApp::beginFrame() {
         return 0;
     }
 
-    vkWaitForFences(device, 1, &inFlightFences[imageIndex], VK_TRUE, UINT64_MAX);
     vkResetFences(device, 1, &inFlightFences[imageIndex]);
-
-    updateUniformBuffer(imageIndex);
+    updateUniformBuffer(imageIndex, view, proj, viewPos, eyeInWater);
     vkResetCommandBuffer(commandBuffers[imageIndex], 0);
 
     VkCommandBufferBeginInfo beginInfo{};
@@ -1621,8 +1347,8 @@ uint32_t VulkanApp::beginFrame() {
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
 
-    vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+    vkCmdBeginRenderPass(commandBuffers[imageIndex], &renderPassInfo,
+        VK_SUBPASS_CONTENTS_INLINE);
 
     VkViewport viewport{};
     viewport.width = static_cast<float>(swapChainExtent.width);
@@ -1635,8 +1361,10 @@ uint32_t VulkanApp::beginFrame() {
     scissor.extent = swapChainExtent;
     vkCmdSetScissor(commandBuffers[imageIndex], 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(commandBuffers[imageIndex], VK_PIPELINE_BIND_POINT_GRAPHICS,
-        pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffers[imageIndex],
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        pipelineLayout, 0, 1,
+        &descriptorSets[imageIndex], 0, nullptr);
 
     return imageIndex;
 }
@@ -1652,7 +1380,7 @@ void VulkanApp::endFrame(uint32_t imageIndex) {
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[imageIndex] };
+    VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[semaphoreIndex] };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
@@ -1660,11 +1388,11 @@ void VulkanApp::endFrame(uint32_t imageIndex) {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
 
-    VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[imageIndex] };
+    VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[semaphoreIndex] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[imageIndex]);
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[semaphoreIndex]);
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1682,6 +1410,7 @@ void VulkanApp::endFrame(uint32_t imageIndex) {
         recreateSwapChain();
     }
 
+    semaphoreIndex = (semaphoreIndex + 1) % swapChainImages.size();
     currentFrame++;
 }
 
@@ -1806,6 +1535,7 @@ void VulkanApp::copyBufferToImage(VkBuffer buffer, VkImage image,
 /// <returns>作成されたテクスチャを表すRHITextureRef型のスマートポインタ。内部的には、テクスチャイメージ、イメージビュー、サンプラーなどのVulkanリソースを管理するVulkanTextureクラスのインスタンスを指す。</returns>
 RHITextureRef VulkanApp::createTexture(uint32_t width, uint32_t height, const void* pixels) {
     auto tex = std::make_shared<VulkanTexture>();
+    tex->device = device;
     tex->width = width;
     tex->height = height;
 

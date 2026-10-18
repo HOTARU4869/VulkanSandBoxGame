@@ -86,6 +86,8 @@ public:
     int                               getWidth()     const { return m_atlasWidth; }
     int                               getHeight()    const { return m_atlasHeight; }
 
+	// ƒ^ƒCƒ‹”‚Ìæ“¾
+    int getTileCount() const { return m_tileCount; }
 private:
     int getTextureIndex(BlockType type, BlockFace face) const {
         switch (type) {
